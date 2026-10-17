@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Watch Later Cleaner</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header><img src="../icons/icon48.png" alt="" width="24" height="24" /> Watch Later Cleaner</header>
+    <p id="page-status" class="muted">Checking current tab…</p>
+    <div class="buttons">
+      <button id="open-wl">Open Watch Later</button>
+      <button id="show-panel" disabled>Show cleaner panel</button>
+      <button id="preview" disabled>Preview (dry run)</button>
+    </div>
+    <form id="settings">
+      <h2>Criteria (matches any)</h2>
+      <label><input type="checkbox" name="watched" /> Watched ≥ <input type="number" name="watchedThreshold" min="1" max="100" /> %</label>
+      <label
+        ><input type="checkbox" name="olderThan" /> Published &gt; <input type="number" name="olderThanValue" min="0" />
+        <select name="olderThanUnit">
+          <option>days</option>
+          <option>weeks</option>
+          <option>months</option>
+          <option>years</option>
+        </select>
+        ago</label
+      >
+      <label><input type="checkbox" name="unavailable" /> Unavailable / deleted / private</label>
+      <label><input type="checkbox" name="channelFilter" /> Channel contains</label>
+      <input type="text" name="channelKeywords" placeholder="comma-separated" />
+      <label><input type="checkbox" name="titleFilter" /> Title contains</label>
+      <input type="text" name="titleKeywords" placeholder="comma-separated" />
+      <label class="danger"><input type="checkbox" name="removeAll" /> Remove ALL videos</label>
+      <h2>Options</h2>
+      <label><input type="checkbox" name="loadAllFirst" /> Auto-scroll to load all first</label>
+      <label>Delay between removals <input type="number" name="delayMs" min="100" step="50" /> ms</label>
+      <label title="Used only if the menu entry can't be found by text or icon (unusual UI language). 0 disables."
+        >Menu fallback position <input type="number" name="menuFallbackPosition" min="0" max="20"
+      /></label>
+      <p id="saved" class="muted">Settings are saved automatically.</p>
+    </form>
+    <p class="muted small">Removal always requires Preview + confirm on the page. Nothing is sent anywhere.</p>
+    <script src="../lib/settings.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
