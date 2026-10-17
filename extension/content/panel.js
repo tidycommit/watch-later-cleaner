@@ -11,13 +11,40 @@
     .fab { position: fixed; right: 20px; bottom: 20px; z-index: 2147483646; background: #cc1f1f; color: #fff;
       border: 0; border-radius: 22px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
       box-shadow: 0 4px 14px rgba(0,0,0,.35); }
-    .panel { position: fixed; right: 20px; bottom: 72px; z-index: 2147483647; width: 380px; max-height: 80vh;
+    .panel { position: fixed; right: 20px; bottom: 72px; z-index: 2147483647; width: min(380px, calc(100vw - 40px)); max-height: 85vh;
       display: flex; flex-direction: column; background: #fff; color: #0f0f0f; border-radius: 12px;
       box-shadow: 0 8px 30px rgba(0,0,0,.35); font-size: 13px; overflow: hidden; }
     .panel[hidden] { display: none; }
     header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px;
       background: #cc1f1f; color: #fff; font-weight: 700; font-size: 14px; }
     header button { background: transparent; color: #fff; border: 0; font-size: 18px; cursor: pointer; line-height: 1; }
+    .panel.expanded { width: min(860px, calc(100vw - 40px)); }
+    header .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    header .hbtns { display: flex; gap: 6px; align-items: center; }
+    .tabs { display: flex; border-bottom: 1px solid #e5e5e5; background: #fafafa; }
+    .tabs button { flex: 1; border: 0; background: transparent; padding: 8px; font-weight: 600; font-size: 12px; cursor: pointer;
+      color: #606060; border-bottom: 2px solid transparent; }
+    .tabs button[aria-selected=true] { color: #cc1f1f; border-bottom-color: #cc1f1f; }
+    .view[hidden] { display: none; }
+    .btn-analyze { background: #0f0f0f; color: #fff; }
+    .btn-csv, .btn-json { background: #fff; color: #0f0f0f; border: 1px solid #ccc !important; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 6px; margin: 8px 0; }
+    .card { background: #f6f6f6; border-radius: 8px; padding: 6px 8px; }
+    .card .v { font-size: 16px; font-weight: 700; }
+    .card .l { font-size: 11px; color: #606060; }
+    .a-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 4px 16px; }
+    .sec h4 { margin: 10px 0 4px; font-size: 12px; color: #303030; text-transform: uppercase; letter-spacing: .03em; }
+    .brow { display: grid; grid-template-columns: minmax(70px, 38%) 1fr auto; gap: 6px; align-items: center; font-size: 12px; margin: 2px 0; }
+    .brow .bl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .brow .bt { height: 10px; background: #f0f0f0; border-radius: 5px; overflow: hidden; }
+    .brow .bt > i { display: block; height: 100%; background: #cc1f1f; border-radius: 5px; }
+    .brow .bv { color: #606060; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .brow.click { cursor: pointer; }
+    .brow.click:hover .bl { text-decoration: underline; color: #cc1f1f; }
+    .mini { font-size: 12px; margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mini a { color: #0f0f0f; text-decoration: none; }
+    .mini a:hover { text-decoration: underline; }
+    .mini span { color: #606060; }
     .body { padding: 10px 14px; overflow-y: auto; }
     fieldset { border: 1px solid #e5e5e5; border-radius: 8px; margin: 0 0 8px; padding: 6px 10px; }
     legend { font-weight: 600; padding: 0 4px; color: #606060; font-size: 12px; }
@@ -54,8 +81,13 @@
   const HTML = `
     <button class="fab" part="fab" title="Watch Later Cleaner">🧹 WL Cleaner</button>
     <div class="panel" hidden role="dialog" aria-label="Watch Later Cleaner">
-      <header><span>🧹 Watch Later Cleaner</span><button class="close" title="Close">×</button></header>
-      <div class="body">
+      <header><span class="title">🧹 Watch Later Cleaner</span>
+        <span class="hbtns"><button class="expand" title="Wider panel">⤢</button><button class="close" title="Close">×</button></span></header>
+      <div class="tabs" role="tablist">
+        <button role="tab" data-tab="clean" aria-selected="true">Clean</button>
+        <button role="tab" data-tab="analytics" aria-selected="false">Analytics</button>
+      </div>
+      <div class="body view view-clean" data-view="clean">
         <fieldset><legend>Remove videos that match any of</legend>
           <div class="row"><label><input type="checkbox" data-k="watched"> Watched ≥</label>
             <input type="number" min="1" max="100" data-k="watchedThreshold"> %</div>
@@ -87,6 +119,16 @@
         <div class="bar"><div></div></div>
         <div class="list"></div>
         <div class="hint">Nothing is removed until you click Preview and then confirm. Runs locally; no data leaves your browser.</div>
+      </div>
+      <div class="body view view-analytics" data-view="analytics" hidden>
+        <div class="actions">
+          <button class="btn-analyze">Analyze playlist</button>
+          <button class="btn-csv" disabled>Export CSV</button>
+          <button class="btn-json" disabled>Export JSON</button>
+        </div>
+        <div class="a-status status" aria-live="polite">Click "Analyze playlist" — it loads the whole list (if auto-scroll is on) and computes stats locally.</div>
+        <div class="a-out"></div>
+        <div class="hint">Computed in your browser from the page; nothing is sent anywhere. Click a channel to prefill the Clean tab's channel filter.</div>
       </div>
     </div>`;
 
@@ -332,6 +374,154 @@
       return text;
     }
 
+    // ---------- Analytics tab ----------
+    const aStatus = $('.a-status');
+    const aOut = $('.a-out');
+    const btnAnalyze = $('.btn-analyze');
+    const btnCsv = $('.btn-csv');
+    const btnJson = $('.btn-json');
+
+    function showTab(name) {
+      shadow.querySelectorAll('.tabs [data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+      shadow.querySelectorAll('.view').forEach((v) => (v.hidden = v.dataset.view !== name));
+      state.tab = name;
+    }
+
+    function setExpanded(on) {
+      panelEl.classList.toggle('expanded', Boolean(on));
+      $('.expand').title = on ? 'Narrower panel' : 'Wider panel';
+    }
+
+    function bars(rows, opts = {}) {
+      const max = Math.max(1, ...rows.map((r) => r.value));
+      return rows
+        .map((r) => {
+          const pct = Math.round((r.value / max) * 100);
+          const attrs = opts.channel ? ` class="brow click" data-channel="${escapeHtml(r.label)}" title="Use “${escapeHtml(r.label)}” as channel filter"` : ' class="brow"';
+          return `<div${attrs}><span class="bl" title="${escapeHtml(r.label)}">${escapeHtml(r.label)}</span><span class="bt"><i style="width:${pct}%"></i></span><span class="bv">${escapeHtml(r.display)}</span></div>`;
+        })
+        .join('');
+    }
+
+    function pctOf(n, total) {
+      return total ? `${Math.round((n / total) * 100)}%` : '0%';
+    }
+
+    function renderAnalytics(st) {
+      const H = WLC.formatHours;
+      const n = st.available;
+      const card = (v, l) => `<div class="card"><div class="v">${escapeHtml(v)}</div><div class="l">${escapeHtml(l)}</div></div>`;
+      const bucketRows = (defs, data) =>
+        defs.concat([{ key: 'unknown', label: 'Unknown' }]).map((b) => ({ label: b.label, value: data[b.key] || 0, display: `${(data[b.key] || 0).toLocaleString('en-US')} · ${pctOf(data[b.key] || 0, n)}` }));
+      const scriptRows = Object.entries(st.scripts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([k, v]) => ({ label: k, value: v, display: `${v.toLocaleString('en-US')} · ${pctOf(v, n)}` }));
+      const mini = (v, extra) =>
+        `<div class="mini">${v.videoId ? `<a href="https://www.youtube.com/watch?v=${encodeURIComponent(v.videoId)}" target="_blank" rel="noopener">` : ''}${escapeHtml(v.title || '(untitled)')}${v.videoId ? '</a>' : ''} <span>· ${escapeHtml(v.channel || '—')} · ${escapeHtml(extra(v))}</span></div>`;
+      aOut.innerHTML = `
+        <div class="cards">
+          ${card(st.total.toLocaleString('en-US'), 'videos')}
+          ${card(H(st.totalDurationSec), 'total duration')}
+          ${card(WLC.formatDuration(st.avgDurationSec), 'avg duration')}
+          ${card(H(st.remainingDurationSec), 'left to watch')}
+          ${card(st.channelsCount.toLocaleString('en-US'), 'channels')}
+          ${card(st.unavailable.toLocaleString('en-US'), 'unavailable')}
+        </div>
+        <div class="a-grid">
+          <div class="sec"><h4>Watch progress</h4>${bars([
+            { label: `Watched (≥ ${state.settings.watchedThreshold}%)`, value: st.watch.watched, display: `${st.watch.watched.toLocaleString('en-US')} · ${pctOf(st.watch.watched, n)}` },
+            { label: 'Partially watched', value: st.watch.partial, display: `${st.watch.partial.toLocaleString('en-US')} · ${pctOf(st.watch.partial, n)}` },
+            { label: 'Unwatched', value: st.watch.unwatched, display: `${st.watch.unwatched.toLocaleString('en-US')} · ${pctOf(st.watch.unwatched, n)}` },
+          ])}</div>
+          <div class="sec"><h4>Published (age)</h4>${bars(bucketRows(WLC.AGE_BUCKETS, st.age))}</div>
+          <div class="sec"><h4>Duration</h4>${bars(bucketRows(WLC.DURATION_BUCKETS, st.duration))}</div>
+          <div class="sec"><h4>Title script</h4>${bars(scriptRows)}</div>
+          <div class="sec"><h4>Top channels by videos</h4>${bars(
+            st.topChannelsByCount.map((c) => ({ label: c.channel, value: c.count, display: `${c.count.toLocaleString('en-US')}` })),
+            { channel: true }
+          )}</div>
+          <div class="sec"><h4>Top channels by duration</h4>${bars(
+            st.topChannelsByDuration.map((c) => ({ label: c.channel, value: c.durationSec, display: H(c.durationSec) })),
+            { channel: true }
+          )}</div>
+          <div class="sec"><h4>Oldest</h4>${st.oldest.map((v) => mini(v, (x) => x.ageText)).join('') || '<div class="mini">—</div>'}</div>
+          <div class="sec"><h4>Longest</h4>${st.longest.map((v) => mini(v, (x) => WLC.formatDuration(x.durationSec))).join('') || '<div class="mini">—</div>'}</div>
+        </div>`;
+    }
+
+    async function analyze() {
+      if (state.busy) return null;
+      state.settings = readForm();
+      setBusy(true);
+      btnAnalyze.disabled = true;
+      try {
+        if (state.settings.loadAllFirst) {
+          aStatus.textContent = 'Loading all videos (auto-scrolling)…';
+          await WLC.loadAll({ doc, shouldStop: () => state.stop, onProgress: (k) => (aStatus.textContent = `Loading all videos… ${k} loaded`) });
+        }
+        aStatus.textContent = 'Reading video details…';
+        const t0 = Date.now();
+        const videos = await WLC.parseAllSettled({ doc });
+        const stats = WLC.computeStats(videos, { watchedThreshold: state.settings.watchedThreshold });
+        state.analytics = { videos, stats };
+        renderAnalytics(stats);
+        const noDur = stats.available - stats.withDuration;
+        aStatus.textContent =
+          `Analyzed ${videos.length.toLocaleString('en-US')} videos in ${((Date.now() - t0) / 1000).toFixed(1)} s.` +
+          (noDur ? ` ${noDur} without a duration badge (live/upcoming or not rendered) are excluded from duration totals.` : '');
+        btnCsv.disabled = btnJson.disabled = !videos.length;
+        return stats;
+      } finally {
+        setBusy(false);
+        btnAnalyze.disabled = false;
+      }
+    }
+
+    function download(name, text, type) {
+      const blob = new Blob([text], { type });
+      const url = URL.createObjectURL(blob);
+      const a = doc.createElement('a');
+      a.href = url;
+      a.download = name;
+      shadow.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
+    const stamp = () => new Date().toISOString().slice(0, 10);
+    function exportCsv() {
+      if (!state.analytics) return '';
+      const text = WLC.toCSV(state.analytics.videos);
+      download(`watch-later-${stamp()}.csv`, text, 'text/csv;charset=utf-8');
+      return text;
+    }
+    function exportJson() {
+      if (!state.analytics) return '';
+      const text = WLC.toJSON(state.analytics.videos, state.analytics.stats);
+      download(`watch-later-${stamp()}.json`, text, 'application/json');
+      return text;
+    }
+
+    function useChannelFilter(name) {
+      const next = Object.assign({}, readForm(), { channelFilter: true, channelKeywords: name });
+      state.settings = WLC.normalizeSettings(next);
+      writeForm(state.settings);
+      WLC.saveSettings(state.settings);
+      invalidatePlan();
+      showTab('clean');
+      setStatus(`Channel filter set to “${name}”. Click Preview to see what would be removed.`);
+    }
+
+    shadow.querySelectorAll('.tabs [data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+    $('.expand').addEventListener('click', () => setExpanded(!panelEl.classList.contains('expanded')));
+    btnAnalyze.addEventListener('click', () => analyze());
+    btnCsv.addEventListener('click', () => exportCsv());
+    btnJson.addEventListener('click', () => exportJson());
+    aOut.addEventListener('click', (e) => {
+      const row = e.target.closest && e.target.closest('[data-channel]');
+      if (row) useChannelFilter(row.getAttribute('data-channel'));
+    });
+
     btnPreview.addEventListener('click', () => preview());
     btnRemove.addEventListener('click', () => remove());
     btnResume.addEventListener('click', () => resume());
@@ -375,6 +565,12 @@
       remove,
       resume,
       copyDebugLog,
+      analyze,
+      exportCsv,
+      exportJson,
+      showTab,
+      setExpanded,
+      useChannelFilter,
       stop() {
         state.stop = true;
       },

@@ -8,6 +8,8 @@ with a dry-run preview before anything is removed.
 
 ![Age filter preview](docs/age-preview.png)
 
+![Analytics tab](docs/analytics.png)
+
 ## Features
 
 - **Remove watched videos** — red progress bar ≥ a configurable threshold (default **90%**).
@@ -34,6 +36,26 @@ with a dry-run preview before anything is removed.
   (≈25 languages), then by its trash-can icon, and finally by its menu position (configurable, default 3rd; set 0 to disable).
 - **Private and minimal:** no YouTube API key, no network requests, no analytics, no remote code.
   Permissions: `storage` (to remember your settings) and host access to `https://www.youtube.com/*` only.
+
+## Analytics
+
+The panel has two tabs: **Clean** and **Analytics** (the popup's **Analytics** button opens the panel on that tab).
+Click **Analyze playlist**: it auto-scrolls to load the whole list (if that option is on) and computes, locally:
+
+- total videos, total / average duration, hours left to watch (duration × unwatched share), channel count, unavailable count;
+- watch progress: watched (≥ your threshold) / partially watched / unwatched;
+- publish-age distribution: < 1 month, 1–6 months, 6–12 months, 1–2 years, 2–3 years, 3+ years, unknown
+  (same lower-bound reading as the age filter, so "1 year ago" is in 1–2 years);
+- duration distribution: < 5 min, 5–20 min, 20–60 min, 1–2 h, 2 h+, unknown (live/upcoming have no duration badge);
+- title script mix (Latin, Hangul, Hangul + Latin, Japanese, Chinese, Cyrillic, …);
+- top 15 channels by number of videos and by total duration — **click a channel** to prefill the Clean tab's channel filter;
+- the 5 oldest and 5 longest videos.
+
+**Export CSV / Export JSON** download `position, title, channel, videoId, url, duration, durationSeconds, progressPercent,
+publishedText, ageDays, unavailable` (JSON also includes the stats). The CSV has a UTF-8 BOM (Korean titles open correctly
+in Excel) and cells starting with `= + - @` are prefixed with `'` to prevent spreadsheet formula injection.
+Use **⤢** in the panel header for a wider, two-column layout. Everything is computed in the page; nothing is sent anywhere.
+A 2,750-item list is analyzed in about a second.
 
 ## How the age filter works
 

@@ -8,6 +8,7 @@ input[type=text] { width: 100%; box-sizing: border-box; margin: 0 0 4px; padding
 button { padding: 7px; border-radius: 16px; border: 0; background: #cc1f1f; color: #fff; font-weight: 600; cursor: pointer; }
 button:disabled { opacity: .45; cursor: not-allowed; }
 #open-wl { background: #0f0f0f; }
+#analytics { background: #1a73e8; }
 .muted { color: #606060; }
 .small { font-size: 11px; }
 .danger { color: #b00020; font-weight: 600; }

@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
+import { generateWatchLaterHtml } from '../test/fixtures/generate.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const extPath = path.join(root, 'dist', 'extension');
@@ -121,6 +122,49 @@ try {
   );
   check(ageRows.some((r) => r.kept && r.title === 'No age shown' && /age unknown/.test(r.meta)), 'unknown age is kept and labelled "age unknown"');
   await page.screenshot({ path: shot.replace(/\.png$/, '_age_preview.png') });
+
+  // Analytics tab on a generated 2,750-item Watch Later page (fake data, Korean + English titles).
+  served = generateWatchLaterHtml(2750);
+  await page.goto(WL_URL, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.getElementById('wlc-panel-host')?.shadowRoot?.querySelector('.fab'), { timeout: 30000 });
+  await sr(() => {
+    const s = document.getElementById('wlc-panel-host').shadowRoot;
+    s.querySelector('.fab').click();
+    s.querySelector('[data-tab="analytics"]').click();
+  });
+  const compactShot = shot.replace(/wl_cleaner_panel(\.png)$/, 'wl_cleaner_analytics_compact$1');
+  await sr(() => document.getElementById('wlc-panel-host').shadowRoot.querySelector('.btn-analyze').click());
+  await page.waitForFunction(() => /Analyzed/.test(document.getElementById('wlc-panel-host').shadowRoot.querySelector('.a-status').textContent), {
+    timeout: 60000,
+  });
+  const a = await sr(() => {
+    const s = document.getElementById('wlc-panel-host').shadowRoot;
+    return {
+      status: s.querySelector('.a-status').textContent,
+      cards: [...s.querySelectorAll('.card')].map((c) => `${c.querySelector('.v').textContent} ${c.querySelector('.l').textContent}`),
+      sections: s.querySelectorAll('.sec').length,
+      channels: s.querySelectorAll('.brow.click').length,
+    };
+  });
+  console.log('  analytics:', a.status, '|', a.cards.join(' | '));
+  check(a.cards[0] === '2,750 videos' && a.sections === 8 && a.channels >= 20, 'analytics renders in the panel for 2,750 items (8 sections, clickable channels)');
+  await page.screenshot({ path: compactShot });
+  await sr(() => {
+    const s = document.getElementById('wlc-panel-host').shadowRoot;
+    s.querySelector('.expand').click();
+    s.querySelector('.body.view-analytics').scrollTop = 0;
+  });
+  const analyticsShot = shot.replace(/wl_cleaner_panel(\.png)$/, 'wl_cleaner_analytics$1');
+  await page.screenshot({ path: analyticsShot });
+  console.log(`  screenshot: ${analyticsShot}`);
+  const prefill = await sr(() => {
+    const s = document.getElementById('wlc-panel-host').shadowRoot;
+    const row = s.querySelector('.brow.click');
+    const name = row.getAttribute('data-channel');
+    row.click();
+    return { name, value: s.querySelector('[data-k="channelKeywords"]').value, checked: s.querySelector('[data-k="channelFilter"]').checked, cleanVisible: !s.querySelector('.view-clean').hidden };
+  });
+  check(prefill.value === prefill.name && prefill.checked && prefill.cleanVisible, `clicking channel "${prefill.name}" prefills the Clean tab's channel filter`);
 } finally {
   await browser.close();
 }

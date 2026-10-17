@@ -37,6 +37,16 @@
       '#metadata',
       '#meta',
     ],
+    // Duration badge on the thumbnail ("12:34", "1:02:03"); classic overlay and newer badge-shape variants.
+    duration: [
+      'ytd-thumbnail-overlay-time-status-renderer #text',
+      'ytd-thumbnail-overlay-time-status-renderer .badge-shape-wiz__text',
+      'ytd-thumbnail-overlay-time-status-renderer .yt-badge-shape__text',
+      'ytd-thumbnail-overlay-time-status-renderer badge-shape',
+      'yt-thumbnail-overlay-badge-view-model .badge-shape-wiz__text',
+      'yt-thumbnail-overlay-badge-view-model .yt-badge-shape__text',
+      'ytd-thumbnail-overlay-time-status-renderer',
+    ].join(', '),
     // Elements whose aria-label usually reads "<title> by <channel> 1,234 views 3 years ago 12 minutes".
     ariaSources: ['#video-title[aria-label]', 'a#thumbnail[aria-label]', 'h3[aria-label]', '[aria-label]'],
     menuButton: [
@@ -205,6 +215,38 @@
     return null;
   }
 
+  /** "12:34" → 754, "1:02:03" → 3723; null for "LIVE", "SHORTS", "" … */
+  function parseDuration(text) {
+    const m = cleanText(text).match(/(?:^|\s)(\d{1,3}(?::[0-5]\d){1,2})(?:\s|$)/);
+    if (!m) return null;
+    return m[1].split(':').reduce((acc, part) => acc * 60 + parseInt(part, 10), 0);
+  }
+
+  /** "1 hour, 2 minutes, 3 seconds" (aria-label of the badge) → 3723 */
+  function parseSpokenDuration(text) {
+    const t = cleanText(text).toLowerCase();
+    let total = 0;
+    let found = false;
+    const re = /(\d+)\s*(hours?|minutes?|seconds?)/g;
+    let m;
+    while ((m = re.exec(t))) {
+      found = true;
+      total += parseInt(m[1], 10) * (m[2][0] === 'h' ? 3600 : m[2][0] === 'm' ? 60 : 1);
+    }
+    return found ? total : null;
+  }
+
+  function findDuration(el) {
+    for (const node of el.querySelectorAll(SELECTORS.duration)) {
+      const text = cleanText(node.textContent);
+      const sec = parseDuration(text);
+      if (sec != null) return { text: text.match(/\d{1,3}(?::[0-5]\d){1,2}/)[0], seconds: sec };
+      const spoken = parseSpokenDuration(node.getAttribute('aria-label'));
+      if (spoken != null) return { text, seconds: spoken };
+    }
+    return null;
+  }
+
   /** Parse one ytd-playlist-video-renderer element into a plain object. */
   function parseItem(el, index) {
     const titleEl = el.querySelector(SELECTORS.title);
@@ -213,6 +255,7 @@
     const channelEl = el.querySelector(SELECTORS.channel);
     const channel = cleanText(channelEl && channelEl.textContent);
     const age = findAge(el, title);
+    const duration = findDuration(el);
     const indexEl = el.querySelector('#index');
     return {
       index: typeof index === 'number' ? index : null,
@@ -221,6 +264,8 @@
       title,
       channel,
       progress: getProgress(el),
+      durationSec: duration ? duration.seconds : null,
+      durationText: duration ? duration.text : '',
       ageText: age ? age.text : '',
       ageDays: age ? age.days : null,
       ageSource: age ? age.source : null, // which DOM variant the age was read from (debugging)
@@ -253,6 +298,9 @@
     getProgress,
     parseAge,
     findAge,
+    parseDuration,
+    parseSpokenDuration,
+    findDuration,
     parseAgeDays,
     normalizeSpaces,
     DAYS_PER,

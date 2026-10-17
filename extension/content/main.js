@@ -36,6 +36,11 @@
         panel.reloadSettings().then(() => panel.preview());
       }
       if (msg.type === 'wlc:stop') panel.stop();
+      if (msg.type === 'wlc:show-analytics') {
+        panel.show();
+        panel.showTab('analytics');
+        if (window.innerWidth >= 900) panel.setExpanded(true);
+      }
       sendResponse({ ok: true, onWatchLater: true, open: panel.isOpen(), busy: panel.state.busy });
       return false;
     });
