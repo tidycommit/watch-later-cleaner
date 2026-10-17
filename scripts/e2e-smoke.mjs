@@ -212,6 +212,48 @@ try {
   const addedShot = shot.replace(/wl_cleaner_panel(\.png)$/, 'wl_cleaner_added_order$1');
   await page.screenshot({ path: addedShot });
   console.log(`  screenshot: ${addedShot}`);
+  // Preview analytics: Match = any (watched OR published ≥ 3 years OR oldest 500 added), wide panel.
+  await sr(() => {
+    const s = document.getElementById('wlc-panel-host').shadowRoot;
+    const set = (k, v) => {
+      const el = s.querySelector(`[data-k="${k}"]`);
+      if (el.type === 'checkbox') el.checked = v;
+      else el.value = v;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('watched', true);
+    set('matchMode', 'any');
+    if (!s.querySelector('.panel').classList.contains('expanded')) s.querySelector('.expand').click();
+    s.querySelector('.btn-preview').click();
+  });
+  await page.waitForFunction(() => {
+    const s = document.getElementById('wlc-panel-host').shadowRoot;
+    return /Dry run/.test(s.querySelector('.status').textContent) && !s.querySelector('details.pv').hidden && s.querySelector('.pv-out .card');
+  }, { timeout: 60000 });
+  const pv = await sr(async () => {
+    const s = document.getElementById('wlc-panel-host').shadowRoot;
+    const first = () => s.querySelector('.pv-out .card .v').textContent;
+    const before = first();
+    const secs = [...s.querySelectorAll('.pv-out .sec h4')].map((h) => h.textContent);
+    const row = s.querySelector('.pv-out [data-exclude-channel]');
+    const name = row.getAttribute('data-exclude-channel');
+    row.click();
+    await new Promise((r) => setTimeout(r, 150));
+    return { before, after: first(), secs, name, overlap: /by 2\+/.test(s.querySelector('.pv-out').textContent), ba: !!s.querySelector('.pv-out .ba') };
+  });
+  console.log('  preview analytics:', pv.before, '→', pv.after, 'after keeping', pv.name);
+  const n = (t) => Number(t.split('/')[0].replace(/[^\d]/g, ''));
+  check(
+    pv.secs.includes('Matched by criterion') && pv.secs.some((t) => /Top channels/.test(t)) && pv.ba && pv.overlap && n(pv.after) < n(pv.before) && /\/ 2,750/.test(pv.before),
+    `preview analytics renders for 2,750 items (${pv.before}); keeping channel "${pv.name}" updates it live (${pv.after})`
+  );
+  await sr(() => {
+    const s = document.getElementById('wlc-panel-host').shadowRoot;
+    s.querySelector('details.pv').scrollIntoView({ block: 'start' });
+  });
+  const pvShot = shot.replace(/wl_cleaner_panel(\.png)$/, 'wl_cleaner_preview_analytics$1');
+  await page.screenshot({ path: pvShot });
+  console.log(`  screenshot: ${pvShot}`);
 } finally {
   await browser.close();
 }

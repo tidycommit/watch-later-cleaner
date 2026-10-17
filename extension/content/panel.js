@@ -76,6 +76,16 @@
     .item.kept .r { color: #606060; }
     .age-unknown { color: #b26a00; }
     .am[hidden] { display: none; }
+    details.pv { margin-top: 8px; border: 1px solid #eee; border-radius: 8px; padding: 4px 8px; }
+    details.pv[hidden] { display: none; }
+    details.pv summary { cursor: pointer; font-weight: 600; font-size: 12px; color: #303030; padding: 2px 0; }
+    .pv-actions button { background: #fff; color: #0f0f0f; border: 1px solid #ccc !important; padding: 5px 6px; }
+    .pv .cards { grid-template-columns: repeat(auto-fit, minmax(95px, 1fr)); }
+    .pv .note { font-size: 11px; color: #606060; margin: 2px 0; }
+    .ba { display: grid; grid-template-columns: auto 1fr auto; gap: 3px 6px; align-items: center; font-size: 12px; }
+    .ba .bt { height: 10px; background: #f0f0f0; border-radius: 5px; overflow: hidden; }
+    .ba .bt > i { display: block; height: 100%; border-radius: 5px; background: #909090; }
+    .ba .bt > i.after { background: #1a73e8; }
     .sort-row { font-size: 11px; color: #606060; }
     .sort-row.bad .sort-note { color: #b26a00; }
     legend select { font-size: 12px; padding: 0 2px; }
@@ -129,6 +139,9 @@
         </div>
         <div class="status" aria-live="polite">Choose criteria, then click Preview.</div>
         <div class="bar"><div></div></div>
+        <details class="pv" hidden open><summary>Preview analytics</summary><div class="pv-out"></div>
+          <div class="actions pv-actions"><button class="btn-pv-tick">Tick all</button><button class="btn-pv-csv">Export CSV</button><button class="btn-pv-json">Export JSON</button></div>
+        </details>
         <div class="list"></div>
         <div class="hint">Nothing is removed until you click Preview and then confirm. Runs locally; no data leaves your browser.</div>
       </div>
@@ -194,6 +207,9 @@
         else inp.value = s[inp.dataset.k];
       });
     }
+    function pvElRef() {
+      return shadow.querySelector('details.pv');
+    }
     function setStatus(text) {
       statusEl.textContent = text;
     }
@@ -201,6 +217,7 @@
       barEl.style.width = `${Math.round(Math.max(0, Math.min(1, frac)) * 100)}%`;
     }
     function invalidatePlan() {
+      if (pvElRef()) pvElRef().hidden = true;
       state.plan = null;
       state.armed = false;
       btnRemove.disabled = true;
@@ -271,6 +288,112 @@
       btnRemove.textContent = state.armed ? `Confirm: remove ${n}` : `Remove ${n}…`;
     }
 
+    // ---------- Preview analytics (matched set) ----------
+    const pvEl = $('details.pv');
+    const pvOut = $('.pv-out');
+    let pvTimer = null;
+
+    function renderPreviewStats() {
+      if (!state.plan || !state.videos) {
+        pvEl.hidden = true;
+        return null;
+      }
+      const sel = selectedPlan();
+      if (!state.baseStats) state.baseStats = WLC.computeStats(state.videos, { watchedThreshold: state.settings.watchedThreshold });
+      const ps = WLC.computePreviewStats(state.videos, sel, { base: state.baseStats, watchedThreshold: state.settings.watchedThreshold });
+      state.previewStats = ps;
+      pvEl.hidden = !state.plan.length;
+      const H = WLC.formatHours;
+      const m = ps.matched;
+      const n = m.available + m.unavailable;
+      const card = (v, l) => `<div class="card"><div class="v">${escapeHtml(v)}</div><div class="l">${escapeHtml(l)}</div></div>`;
+      const pct = (k) => pctOf(k, n);
+      const bucketRows = (defs, data) =>
+        defs.concat([{ key: 'unknown', label: 'Unknown' }]).map((b) => ({ label: b.label, value: data[b.key] || 0, display: `${data[b.key] || 0} · ${pct(data[b.key] || 0)}` }));
+      const ba = (label, before, after, fmt) => {
+        const max = Math.max(1, before);
+        return `<span>${escapeHtml(label)} now</span><span class="bt"><i style="width:100%"></i></span><span>${escapeHtml(fmt(before))}</span>
+          <span>${escapeHtml(label)} after</span><span class="bt"><i class="after" style="width:${Math.round((after / max) * 100)}%"></i></span><span>${escapeHtml(fmt(after))}</span>`;
+      };
+      const num = (x) => x.toLocaleString('en-US');
+      const crit = Object.entries(ps.criteria)
+        .sort((a, b) => b[1] - a[1])
+        .map(([k, v]) => ({ label: k, value: v, display: `${num(v)} · ${pct(v)}` }));
+      const overlap =
+        state.settings.matchMode === 'all' || state.settings.removeAll
+          ? ''
+          : `<div class="note">Matched by one criterion: ${num(ps.overlap.single)} · by 2+: ${num(ps.overlap.multi)}${
+              ps.overlap.combos.length ? ` (${ps.overlap.combos.map((c) => `${escapeHtml(c.combo)}: ${num(c.count)}`).join('; ')})` : ''
+            }</div>`;
+      const range = ps.addedRange
+        ? `<div class="note">Added rank range: #${num(ps.addedRange.min)}–#${num(ps.addedRange.max)}${ps.addedRange.total ? ` of ${num(ps.addedRange.total)}` : ''} (oldest = 1)</div>`
+        : '';
+      pvOut.innerHTML = `
+        <div class="cards">
+          ${card(`${num(ps.count)} / ${num(ps.total)}`, `selected · ${Math.round(ps.pct * 100)}% of playlist`)}
+          ${card(H(ps.freedSec), 'would be freed')}
+          ${card(WLC.formatDuration(m.avgDurationSec), 'avg duration')}
+          ${card(num(ps.after.videos), 'videos after')}
+          ${card(H(ps.after.durationSec), 'hours after')}
+        </div>
+        <div class="ba">${ba('Videos', ps.before.videos, ps.after.videos, num)}${ba('Hours', ps.before.durationSec, ps.after.durationSec, H)}</div>
+        ${range}
+        <div class="a-grid">
+          <div class="sec"><h4>Matched by criterion</h4>${bars(crit)}${overlap}</div>
+          <div class="sec"><h4>Watch progress</h4>${bars([
+            { label: 'Watched', value: m.watch.watched, display: `${m.watch.watched} · ${pct(m.watch.watched)}` },
+            { label: 'Partially watched', value: m.watch.partial, display: `${m.watch.partial} · ${pct(m.watch.partial)}` },
+            { label: 'Unwatched', value: m.watch.unwatched, display: `${m.watch.unwatched} · ${pct(m.watch.unwatched)}` },
+            { label: 'Unavailable', value: m.unavailable, display: `${m.unavailable} · ${pct(m.unavailable)}` },
+          ])}</div>
+          <div class="sec"><h4>Published (age)</h4>${bars(bucketRows(WLC.AGE_BUCKETS, m.age))}</div>
+          <div class="sec"><h4>Duration</h4>${bars(bucketRows(WLC.DURATION_BUCKETS, m.duration))}</div>
+          <div class="sec"><h4>Top channels (click to keep)</h4>${bars(
+            m.topChannelsByCount.slice(0, 10).map((c) => ({ label: c.channel, value: c.count, display: `${c.count} · ${H(c.durationSec)}` })),
+            { exclude: true }
+          )}</div>
+        </div>`;
+      return ps;
+    }
+
+    function schedulePreviewStats() {
+      clearTimeout(pvTimer);
+      pvTimer = setTimeout(renderPreviewStats, 60); // coalesce bursts of tick changes on big lists
+    }
+
+    /** Untick every preview row from a channel (keep them in Watch later). Returns the number unticked. */
+    function excludeChannel(name) {
+      if (!state.plan) return 0;
+      let k = 0;
+      listEl.querySelectorAll('input[data-i]').forEach((box) => {
+        const m = state.plan[Number(box.dataset.i)];
+        if (box.checked && m && (m.video.channel || '(unknown channel)') === name) {
+          box.checked = false;
+          k++;
+        }
+      });
+      state.armed = false;
+      updateRemoveButton();
+      renderPreviewStats();
+      setStatus(`Keeping ${k} video(s) from “${name}” — unticked in the list. ${selectedPlan().length} selected for removal.`);
+      return k;
+    }
+
+    function tickAll() {
+      listEl.querySelectorAll('input[data-i]').forEach((box) => (box.checked = true));
+      state.armed = false;
+      updateRemoveButton();
+      renderPreviewStats();
+    }
+
+    function exportPreview(kind) {
+      const videos = selectedPlan().map((m) => m.video);
+      if (!videos.length) return '';
+      const text = kind === 'csv' ? WLC.toCSV(videos) : WLC.toJSON(videos, state.previewStats ? state.previewStats.matched : undefined);
+      download(`watch-later-preview-${stamp()}.${kind}`, text, kind === 'csv' ? 'text/csv;charset=utf-8' : 'application/json');
+      return text;
+    }
+
     async function preview() {
       if (state.busy) return;
       const s = (state.settings = readForm());
@@ -302,7 +425,9 @@
         const kept = s.showKept ? videos.filter((v) => !matched.has(v)) : [];
         state.plan = plan;
         state.videos = videos;
+        state.baseStats = null;
         renderList(plan, kept);
+        renderPreviewStats();
         setBar(0);
         const unknown = videos.filter((v) => !v.unavailable && v.ageDays == null).length;
         const ageNote = s.olderThan && unknown ? ` ${unknown} video(s) have an unknown age and are never matched by the age filter.` : '';
@@ -450,7 +575,11 @@
       return rows
         .map((r) => {
           const pct = Math.round((r.value / max) * 100);
-          const attrs = opts.channel ? ` class="brow click" data-channel="${escapeHtml(r.label)}" title="Use “${escapeHtml(r.label)}” as channel filter"` : ' class="brow"';
+          const attrs = opts.exclude
+            ? ` class="brow click" data-exclude-channel="${escapeHtml(r.label)}" title="Keep all videos from “${escapeHtml(r.label)}” (untick them)"`
+            : opts.channel
+              ? ` class="brow click" data-channel="${escapeHtml(r.label)}" title="Use “${escapeHtml(r.label)}” as channel filter"`
+              : ' class="brow"';
           return `<div${attrs}><span class="bl" title="${escapeHtml(r.label)}">${escapeHtml(r.label)}</span><span class="bt"><i style="width:${pct}%"></i></span><span class="bv">${escapeHtml(r.display)}</span></div>`;
         })
         .join('');
@@ -585,6 +714,13 @@
       if (row) useChannelFilter(row.getAttribute('data-channel'));
     });
 
+    pvOut.addEventListener('click', (e) => {
+      const row = e.target.closest && e.target.closest('[data-exclude-channel]');
+      if (row) excludeChannel(row.getAttribute('data-exclude-channel'));
+    });
+    $('.btn-pv-tick').addEventListener('click', () => tickAll());
+    $('.btn-pv-csv').addEventListener('click', () => exportPreview('csv'));
+    $('.btn-pv-json').addEventListener('click', () => exportPreview('json'));
     btnPreview.addEventListener('click', () => preview());
     btnRemove.addEventListener('click', () => remove());
     btnResume.addEventListener('click', () => resume());
@@ -607,6 +743,7 @@
       } else if (t.matches('input[data-i]')) {
         state.armed = false;
         updateRemoveButton();
+        schedulePreviewStats();
       }
     });
     // Keep YouTube keyboard shortcuts from firing while typing in the panel.
@@ -632,6 +769,10 @@
       resume,
       copyDebugLog,
       analyze,
+      renderPreviewStats,
+      excludeChannel,
+      tickAll,
+      exportPreview,
       exportCsv,
       exportJson,
       showTab,

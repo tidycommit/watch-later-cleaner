@@ -119,6 +119,18 @@
     return checks.filter(Boolean);
   }
 
+  /** Map a match reason string to its criterion name (for per-criterion counts). */
+  function reasonKey(r) {
+    if (r === 'all') return 'Remove all';
+    if (r === 'unavailable') return 'Unavailable';
+    if (r.startsWith('watched')) return 'Watched';
+    if (r.startsWith('published')) return 'Published age';
+    if (r.startsWith('channel')) return 'Channel';
+    if (r.startsWith('title')) return 'Title';
+    if (/^(oldest \d+ added|below position|positions #)/.test(r)) return 'Added order';
+    return 'Other';
+  }
+
   /** Select videos to remove. Returns [{ video, reasons }] in playlist order. */
   function selectVideos(videos, settings, ctx) {
     if (!hasCriteria(settings)) return [];
@@ -152,6 +164,7 @@
     addedModeLabel,
     addedReason,
     matchReasons,
+    reasonKey,
     keepReason,
     selectVideos,
   });
