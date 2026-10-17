@@ -32,6 +32,9 @@
     .btn-preview { background: #0f0f0f; color: #fff; }
     .btn-remove { background: #cc1f1f; color: #fff; }
     .btn-stop { background: #e5e5e5; color: #0f0f0f; }
+    .btn-resume { background: #1a73e8; color: #fff; }
+    .btn-log { background: #fff; color: #0f0f0f; border: 1px solid #ccc !important; }
+    .actions.secondary button[hidden] { display: none; }
     button:disabled { opacity: .45; cursor: not-allowed; }
     .status { margin: 6px 0; color: #303030; min-height: 18px; }
     .bar { height: 6px; background: #eee; border-radius: 3px; overflow: hidden; }
@@ -76,6 +79,10 @@
           <button class="btn-remove" disabled>Remove…</button>
           <button class="btn-stop" disabled>Stop</button>
         </div>
+        <div class="actions secondary">
+          <button class="btn-resume" hidden>Resume</button>
+          <button class="btn-log" disabled title="Copy a plain-text log of every removal attempt (for troubleshooting)">Copy debug log</button>
+        </div>
         <div class="status" aria-live="polite">Choose criteria, then click Preview.</div>
         <div class="bar"><div></div></div>
         <div class="list"></div>
@@ -106,8 +113,19 @@
     const btnPreview = $('.btn-preview');
     const btnRemove = $('.btn-remove');
     const btnStop = $('.btn-stop');
+    const btnResume = $('.btn-resume');
+    const btnLog = $('.btn-log');
 
-    const state = { settings: WLC.normalizeSettings(null), plan: null, busy: false, stop: false, armed: false };
+    const state = {
+      settings: WLC.normalizeSettings(null),
+      plan: null,
+      busy: false,
+      stop: false,
+      armed: false,
+      pending: [], // videos (by id) still to remove after Stop / pause — used by Resume
+      log: [],
+      lastStats: null,
+    };
 
     function readForm() {
       const raw = {};
@@ -134,12 +152,18 @@
       btnRemove.disabled = true;
       btnRemove.textContent = 'Remove…';
     }
+    function updateSecondary() {
+      btnResume.hidden = state.busy || !state.pending.length;
+      btnResume.textContent = `Resume (${state.pending.length} left)`;
+      btnLog.disabled = !state.log.length;
+    }
     function setBusy(b) {
       state.busy = b;
       btnPreview.disabled = b;
       btnStop.disabled = !b;
       shadow.querySelectorAll('[data-k]').forEach((i) => (i.disabled = b));
       if (b) btnRemove.disabled = true;
+      updateSecondary();
     }
 
     function metaLine(v) {
@@ -179,6 +203,7 @@
         return null;
       }
       state.stop = false;
+      state.pending = []; // a new preview replaces any unfinished run
       setBusy(true);
       try {
         if (s.loadAllFirst) {
@@ -208,6 +233,51 @@
       }
     }
 
+    function stepSummary(steps) {
+      return Object.entries(steps || {})
+        .map(([k, n]) => `${k} ×${n}`)
+        .join(', ');
+    }
+
+    async function runRemoval(entries) {
+      state.stop = false;
+      setBusy(true);
+      const s = state.settings;
+      let stats;
+      try {
+        stats = await WLC.removeVideos(entries, {
+          doc,
+          delayMs: s.delayMs,
+          fallbackPosition: s.menuFallbackPosition,
+          shouldStop: () => state.stop,
+          onLog: (e) => {
+            if (state.log.length < 20000) state.log.push(e);
+          },
+          onProgress: (p) => {
+            setBar((p.done + p.failed + p.skipped) / p.total);
+            let msg = `Removing… ${p.done}/${p.total} removed`;
+            if (p.failed) msg += `, ${p.failed} failed`;
+            if (p.skipped) msg += `, ${p.skipped} already gone`;
+            if (p.delayMs > s.delayMs) msg += ` (slowed to ${p.delayMs} ms — YouTube may be throttling)`;
+            setStatus(msg);
+          },
+        });
+      } finally {
+        setBusy(false);
+      }
+      state.lastStats = stats;
+      state.pending = stats.remaining;
+      let msg = `${stats.stopped ? 'Stopped' : stats.aborted ? 'Paused' : 'Done'}: removed ${stats.done} of ${stats.total}.`;
+      if (stats.skipped) msg += ` ${stats.skipped} were already gone.`;
+      if (stats.failed) msg += ` ${stats.failed} failed (${stepSummary(stats.steps)}).`;
+      if (stats.aborted) msg += ` Paused after 8 failed videos in a row — YouTube may be throttling or its layout changed.`;
+      if (state.pending.length) msg += ` Click Resume to continue the remaining ${state.pending.length}.`;
+      if (stats.failed || stats.aborted) msg += ' Use "Copy debug log" if this keeps happening.';
+      setStatus(msg);
+      updateSecondary();
+      return stats;
+    }
+
     async function remove() {
       if (state.busy || !state.plan) return;
       if (!state.armed) {
@@ -216,33 +286,56 @@
         setStatus(`Click "Confirm: remove ${selectedPlan().length}" to start. This cannot be undone from here.`);
         return;
       }
-      const plan = selectedPlan().map((m) => m.video);
-      state.stop = false;
-      setBusy(true);
-      const s = state.settings;
-      const stats = await WLC.removeVideos(plan, {
-        doc,
-        delayMs: s.delayMs,
-        fallbackPosition: s.menuFallbackPosition,
-        shouldStop: () => state.stop,
-        onProgress: (p) => {
-          setBar((p.done + p.failed + p.skipped) / p.total);
-          setStatus(`Removing… ${p.done}/${p.total} removed${p.failed ? `, ${p.failed} failed` : ''}`);
-        },
-      });
-      setBusy(false);
+      const entries = selectedPlan().map((m) => WLC.toPlanEntry(m.video)); // ids, not DOM positions
       invalidatePlan();
       listEl.innerHTML = '';
-      let msg = `${stats.stopped ? 'Stopped' : 'Done'}: removed ${stats.done} of ${stats.total}.`;
-      if (stats.failed) msg += ` ${stats.failed} failed.`;
-      if (stats.skipped) msg += ` ${stats.skipped} skipped (no longer on page).`;
-      if (stats.aborted) msg += ' Aborted after repeated failures — YouTube layout may have changed.';
-      setStatus(msg);
-      return stats;
+      state.log = [];
+      return runRemoval(entries);
+    }
+
+    async function resume() {
+      if (state.busy || !state.pending.length) return;
+      return runRemoval(state.pending.slice());
+    }
+
+    async function copyDebugLog() {
+      let version = '?';
+      try {
+        version = chrome.runtime.getManifest().version;
+      } catch (_) {
+        /* not in an extension context */
+      }
+      const text = WLC.formatDebugLog({
+        version,
+        settings: state.settings,
+        stats: state.lastStats || {},
+        log: state.log,
+        itemCount: WLC.getItems(doc).length,
+      });
+      let ok = false;
+      try {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      } catch (_) {
+        const ta = doc.createElement('textarea');
+        ta.value = text;
+        shadow.appendChild(ta);
+        ta.select();
+        try {
+          ok = doc.execCommand('copy');
+        } catch (_e) {
+          /* clipboard unavailable */
+        }
+        ta.remove();
+      }
+      setStatus(ok ? `Debug log copied (${state.log.length} attempts). Paste it into your bug report.` : 'Could not access the clipboard.');
+      return text;
     }
 
     btnPreview.addEventListener('click', () => preview());
     btnRemove.addEventListener('click', () => remove());
+    btnResume.addEventListener('click', () => resume());
+    btnLog.addEventListener('click', () => copyDebugLog());
     btnStop.addEventListener('click', () => {
       state.stop = true;
       setStatus('Stopping after the current item…');
@@ -280,6 +373,8 @@
       isOpen: () => !panelEl.hidden,
       preview,
       remove,
+      resume,
+      copyDebugLog,
       stop() {
         state.stop = true;
       },

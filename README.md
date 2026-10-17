@@ -21,8 +21,14 @@ with a dry-run preview before anything is removed.
 - **Dry run first:** *Preview* shows the count and the list of matched videos (with the reason each matched).
   Untick anything you want to keep. *Remove* then needs a second **Confirm** click.
 - Removal works by **simulating the UI**: each item's **⋮** menu → **Remove from Watch later**, with a configurable
-  delay between removals (default **400 ms**), a progress bar/counter and a **Stop** button.
-  It verifies each item actually disappeared and aborts after 3 consecutive failures.
+  delay between removals (default **400 ms**), a progress bar/counter and a **Stop** button. Built for long lists (thousands of items):
+  - the removal plan is a list of **video IDs**; each video is located fresh by ID right before acting and success is verified by
+    that ID disappearing (YouTube re-uses row elements after removals, so element references can't be trusted),
+    with YouTube's "Removed from Watch later" toast as a second confirmation;
+  - rows are scrolled into view before opening ⋮; a stale/closing popup is closed first;
+  - each video gets up to **3 attempts** with backoff; after a failure the delay doubles (up to 5 s) and recovers after successes;
+  - it only **pauses** after 8 failed videos in a row; **Resume** continues with the failed + remaining videos without a new preview;
+  - **Copy debug log** copies a plain-text log of every attempt (video ID, attempt, the step that failed) for troubleshooting.
 - **Auto-scroll** loads the whole playlist before matching (optional).
 - **Localization:** the menu entry is found by its English text, then by a localized "remove" verb
   (≈25 languages), then by its trash-can icon, and finally by its menu position (configurable, default 3rd; set 0 to disable).
@@ -63,6 +69,8 @@ with a dry-run preview before anything is removed.
 4. Click **Preview (dry run)**. The extension scrolls to load all videos and lists what would be removed. Nothing is removed yet.
 5. Untick any video you want to keep, click **Remove N…**, then **Confirm: remove N**.
 6. Watch the progress counter; click **Stop** at any time (it stops after the current item).
+7. If it stops or pauses, click **Resume (N left)** to continue. If failures keep happening, click **Copy debug log**
+   and paste it into an issue — it lists which step failed for each video.
 
 Settings are shared between the popup and the on-page panel and saved in `chrome.storage.sync`.
 

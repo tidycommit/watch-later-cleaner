@@ -14,7 +14,7 @@ const shot = path.resolve(process.argv[2] || path.join(root, 'dist', 'wl_cleaner
 const WL_URL = 'https://www.youtube.com/playlist?list=WL';
 const fixture = fs
   .readFileSync(path.join(root, 'test/fixtures/watch-later.html'), 'utf8')
-  .replace('</body>', `<script>${fs.readFileSync(path.join(root, 'test/fixtures/fake-yt-menu.js'), 'utf8')}</script></body>`);
+  .replace('</body>', `<script>window.__wlcFake = { recycle: true, toast: true };</script><script>${fs.readFileSync(path.join(root, 'test/fixtures/fake-yt-menu.js'), 'utf8')}</script></body>`);
 
 const ageFixture = fs.readFileSync(path.join(root, 'test/fixtures/age-variants.html'), 'utf8');
 let served = fixture;
@@ -77,7 +77,7 @@ try {
   });
   const after = await page.$$eval('ytd-playlist-video-renderer #video-title', (els) => els.map((e) => e.textContent.trim()));
   console.log('  status:', await sr(() => document.getElementById('wlc-panel-host').shadowRoot.querySelector('.status').textContent));
-  check(after.length === 5 && !after.some((t) => EXPECTED.includes(t)), `confirmed removal on fake fixture leaves 5 items`);
+  check(after.length === 5 && !after.some((t) => EXPECTED.includes(t)), `confirmed removal on fake fixture (rows recycled like Polymer, toast shown) leaves the 5 right items`);
   await page.screenshot({ path: shot.replace(/\.png$/, '_after_removal.png') });
 
   // Age filter against the markup-variants fixture: "Published at least 12 months ago", list kept videos too.

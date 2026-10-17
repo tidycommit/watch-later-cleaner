@@ -20,11 +20,12 @@ export function loadWLC() {
 }
 
 /** Replace the jsdom document with the Watch Later fixture (optionally with the fake ⋮ menu). */
-export function loadFixture({ fakeMenu = false, mode = 'en', html = FIXTURE_HTML } = {}) {
+export function loadFixture({ fakeMenu = false, mode = 'en', html = FIXTURE_HTML, fake = {} } = {}) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   document.documentElement.replaceWith(document.importNode(doc.documentElement, true));
   if (fakeMenu) {
     window.__wlcFakeMenuMode = mode;
+    window.__wlcFake = fake;
     new Function('window', FAKE_MENU_SRC)(window);
   }
   return document;
