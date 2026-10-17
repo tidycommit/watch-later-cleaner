@@ -328,28 +328,45 @@
   /** Strip DOM references: a removal plan is a list of ids (+ display info), never element positions. */
   function toPlanEntry(v) {
     const entry = { videoId: v.videoId, title: v.title, channel: v.channel, ageText: v.ageText };
+    if (v.setVideoId) entry.setVideoId = v.setVideoId; // playlist-entry id (Fast mode)
     if (!v.videoId) entry.el = v.el; // only for items without an id (rare)
     return entry;
   }
 
+  /** Classic-path cleanup between attempts: close any ⋮ popup that is still open. */
+  async function classicCleanup(doc) {
+    pressEscape(doc);
+    await ensureMenuClosed(doc);
+  }
+
   /**
-   * Remove planned videos one by one, located fresh by videoId each time.
-   * - each video gets up to `maxAttempts` attempts with backoff (Escape + wait) between them
+   * Remove planned videos one by one (sequentially).
+   * - each video gets up to `maxAttempts` attempts with backoff between them
    * - adaptive pacing: the delay doubles after a failed video (up to maxDelayMs) and decays back after successes
    * - pauses (aborted=true) only after `maxConsecutiveFailures` failed videos in a row
    * - returns `remaining` (failed + not attempted) so the caller can Resume without re-previewing
-   * opts: { doc, delayMs, maxDelayMs, maxAttempts, maxConsecutiveFailures, shouldStop, onProgress, onLog, ... }
+   * The per-video step is pluggable: Classic (default) locates the row by videoId and clicks ⋮ → Remove;
+   * Fast mode passes `attempt` (an edit_playlist request) and `sleep` (a pacing sleep that works in hidden tabs).
+   * opts: { doc, delayMs, maxDelayMs, jitterMs, maxAttempts, maxConsecutiveFailures, fallbackAfter, mode,
+   *         attempt, sleep, onRemoved, shouldStop, onProgress, onLog, ... }
    */
   async function removeVideos(videos, opts = {}) {
     const doc = opts.doc || document;
     const shouldStop = opts.shouldStop || (() => false);
+    const mode = opts.mode || 'classic';
+    const attemptFn = opts.attempt || ((video) => attemptRemove(video, Object.assign({}, opts, { doc })));
+    const wait = opts.sleep || sleep;
+    const cleanup = opts.attempt ? null : classicCleanup;
     const baseDelay = opts.delayMs == null ? 400 : opts.delayMs;
     const maxDelay = Math.max(baseDelay, opts.maxDelayMs == null ? 5000 : opts.maxDelayMs);
+    const jitter = Math.max(0, opts.jitterMs || 0);
+    const random = opts.random || Math.random;
     const maxAttempts = opts.maxAttempts || 3;
     const maxConsecutive = opts.maxConsecutiveFailures || 8;
+    const fallbackAfter = opts.fallbackAfter || 0;
     const queue = videos.map(toPlanEntry);
     const stats = {
-      done: 0, failed: 0, skipped: 0, total: queue.length, stopped: false, aborted: false,
+      done: 0, failed: 0, skipped: 0, total: queue.length, stopped: false, aborted: false, fallback: false,
       remaining: [], failures: [], steps: {}, log: [], errors: [],
     };
     const failedVideos = [];
@@ -357,7 +374,7 @@
     let consecutive = 0;
     let i = 0;
     const log = (entry) => {
-      const e = Object.assign({ t: new Date().toISOString(), delayMs: delay }, entry);
+      const e = Object.assign({ t: new Date().toISOString(), mode, delayMs: delay }, entry);
       if (stats.log.length < 5000) stats.log.push(e);
       if (opts.onLog) opts.onLog(e);
     };
@@ -370,17 +387,17 @@
       const video = queue[i];
       let r = null;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        r = await attemptRemove(video, Object.assign({}, opts, { doc }));
+        r = await attemptFn(video);
         log({ videoId: video.videoId, title: video.title, attempt, step: r.step, ok: r.ok, detail: r.detail || r.method || '' });
-        if (r.ok || r.status === 'gone' || shouldStop()) break;
-        pressEscape(doc);
-        await ensureMenuClosed(doc);
-        await sleep(Math.min(maxDelay, delay * 2 ** attempt)); // backoff before retrying the same video
+        if (r.ok || r.status === 'gone' || r.retryable === false || shouldStop()) break;
+        if (cleanup) await cleanup(doc);
+        await wait(Math.min(maxDelay, delay * 2 ** attempt)); // backoff before retrying the same video
       }
       if (r.ok) {
         stats.done++;
         consecutive = 0;
         delay = Math.max(baseDelay, Math.round(delay * 0.8));
+        if (opts.onRemoved) opts.onRemoved(video, r);
       } else if (r.status === 'gone') {
         stats.skipped++;
       } else {
@@ -392,16 +409,29 @@
         stats.errors.push(`${video.title || video.videoId}: ${r.step}`);
         delay = Math.min(maxDelay, delay * 2); // YouTube may be throttling — slow down instead of giving up
       }
-      if (opts.onProgress) opts.onProgress(Object.assign({ current: video, result: r, delayMs: delay, index: i }, stats));
+      if (opts.onProgress) opts.onProgress(Object.assign({ current: video, result: r, delayMs: delay, index: i, mode }, stats));
+      if (fallbackAfter && stats.done === 0 && consecutive >= fallbackAfter) {
+        stats.fallback = true; // nothing worked in this mode — let the caller switch modes
+        i++;
+        break;
+      }
       if (consecutive >= maxConsecutive) {
         stats.aborted = true;
         i++;
         break;
       }
-      await sleep(delay);
+      if (i < queue.length - 1) await wait(delay + (jitter ? Math.round(random() * jitter) : 0));
     }
     stats.remaining = failedVideos.concat(queue.slice(i));
     return stats;
+  }
+
+  /** Remove anything that could look like a credential (defense in depth for the copyable debug log). */
+  function redactSecrets(text) {
+    return String(text == null ? '' : text)
+      .replace(/SAPISID\w*HASH\s+\S+/gi, '[redacted]')
+      .replace(/\b(Authorization|Cookie)\s*[:=]\s*[^\n]*/gi, '$1: [redacted]')
+      .replace(/\b((?:__Secure-[\w-]+)|SAPISID|APISID|HSID|SSID|SID|LOGIN_INFO)=[^;\s]+/g, '$1=[redacted]');
   }
 
   /** Plain-text debug report for the "Copy debug log" button (no data leaves the browser unless the user pastes it). */
@@ -413,6 +443,7 @@
       `userAgent: ${info.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : '?')}`,
       `items on page: ${info.itemCount == null ? '?' : info.itemCount}`,
       `settings: ${JSON.stringify(info.settings || {})}`,
+      `mode: ${s.modeUsed || (info.settings && info.settings.removalMode) || '?'}${s.fallbackReason ? `  fallback: ${s.fallbackReason}` : ''}`,
       `result: removed ${s.done || 0}/${s.total || 0}, failed ${s.failed || 0}, already gone ${s.skipped || 0}, ` +
         `stopped ${Boolean(s.stopped)}, paused ${Boolean(s.aborted)}, remaining ${(s.remaining || []).length}`,
       `failure steps: ${JSON.stringify(s.steps || {})}`,
@@ -423,9 +454,13 @@
       'attempts (last 300):',
       ...(info.log || s.log || [])
         .slice(-300)
-        .map((e) => `  ${e.t} ${e.ok ? 'OK  ' : 'FAIL'} #${e.attempt} ${e.videoId || '-'} ${e.step} delay=${e.delayMs} ${e.detail || ''}`),
+        .map((e) =>
+          e.event
+            ? `  ${e.t} ${String(e.event).toUpperCase()} [${e.mode || '-'}] ${e.detail || ''}`
+            : `  ${e.t} ${e.ok ? 'OK  ' : 'FAIL'} #${e.attempt} ${e.videoId || '-'} ${e.step} delay=${e.delayMs} mode=${e.mode || 'classic'} ${e.detail || ''}`
+        ),
     ];
-    return lines.join('\n');
+    return redactSecrets(lines.join('\n'));
   }
 
   Object.assign(WLC, {
@@ -450,6 +485,7 @@
     parseAllSettled,
     toPlanEntry,
     removeVideos,
+    redactSecrets,
     formatDebugLog,
   });
   if (typeof module !== 'undefined' && module.exports) module.exports = WLC;

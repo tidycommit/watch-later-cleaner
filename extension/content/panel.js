@@ -91,6 +91,8 @@
     legend select { font-size: 12px; padding: 0 2px; }
     .added { color: #1a73e8; }
     .hint { color: #606060; font-size: 11px; }
+    .mode-row select { flex: 1; }
+    .mode-note { margin-top: -2px; }
   `;
 
   const HTML = `
@@ -124,7 +126,10 @@
           <div class="row danger"><label><input type="checkbox" data-k="removeAll"> Remove ALL videos</label></div>
         </fieldset>
         <fieldset><legend>Options</legend>
-          <div class="row"><label><input type="checkbox" data-k="loadAllFirst"> Auto-scroll to load all videos first</label></div>
+          <div class="row mode-row"><label for="wlc-mode">Mode</label>
+            <select id="wlc-mode" data-k="removalMode" title="Fast uses YouTube's own web requests and keeps working in a background tab; Classic clicks each row's ⋮ menu."><option value="fast">Fast (works in background)</option><option value="classic">Classic (page clicks)</option></select></div>
+          <div class="row hint mode-note"></div>
+          <div class="row"><label><input type="checkbox" data-k="loadAllFirst"> Load all videos first (Classic: auto-scroll)</label></div>
           <div class="row"><label><input type="checkbox" data-k="showKept"> Preview: also list kept videos (with parsed age)</label></div>
           <div class="row">Delay between removals <input type="number" min="100" step="50" data-k="delayMs"> ms</div>
         </fieldset>
@@ -143,7 +148,7 @@
           <div class="actions pv-actions"><button class="btn-pv-tick">Tick all</button><button class="btn-pv-csv">Export CSV</button><button class="btn-pv-json">Export JSON</button></div>
         </details>
         <div class="list"></div>
-        <div class="hint">Nothing is removed until you click Preview and then confirm. Runs locally; no data leaves your browser.</div>
+        <div class="hint">Nothing is removed until you click Preview and then confirm. Runs in your browser and only talks to youtube.com.</div>
       </div>
       <div class="body view view-analytics" data-view="analytics" hidden>
         <div class="actions">
@@ -153,7 +158,7 @@
         </div>
         <div class="a-status status" aria-live="polite">Click "Analyze playlist" — it loads the whole list (if auto-scroll is on) and computes stats locally.</div>
         <div class="a-out"></div>
-        <div class="hint">Computed in your browser from the page; nothing is sent anywhere. Click a channel to prefill the Clean tab's channel filter.</div>
+        <div class="hint">Computed in your browser; nothing is sent anywhere except youtube.com (Fast mode loads the list from YouTube itself). Click a channel to prefill the Clean tab's channel filter.</div>
       </div>
     </div>`;
 
@@ -192,7 +197,27 @@
       pending: [], // videos (by id) still to remove after Stop / pause — used by Resume
       log: [],
       lastStats: null,
+      api: null,
+      lastMode: null,
     };
+
+    function fastApi() {
+      if (!state.api) state.api = WLC.createFastApi({ win: doc.defaultView || root, doc });
+      return state.api;
+    }
+    function modeLabel(m) {
+      return m === 'classic' ? 'Classic' : 'Fast';
+    }
+    function applyModeNote() {
+      const s = readForm();
+      $('.mode-note').textContent =
+        s.removalMode === 'fast'
+          ? "Uses YouTube's own web requests; keeps running when this tab is in the background. Falls back to Classic automatically."
+          : "Clicks each row's ⋮ menu. Keep this tab visible — background tabs are throttled.";
+    }
+    function logEvent(e) {
+      if (state.log.length < 20000) state.log.push(e);
+    }
 
     function readForm() {
       const raw = {};
@@ -206,6 +231,7 @@
         if (inp.type === 'checkbox') inp.checked = Boolean(s[inp.dataset.k]);
         else inp.value = s[inp.dataset.k];
       });
+      if (shadow.querySelector('.mode-note')) applyModeNote();
     }
     function pvElRef() {
       return shadow.querySelector('details.pv');
@@ -409,15 +435,29 @@
       setBusy(true);
       try {
         const sort = refreshSort();
-        if (s.loadAllFirst || s.addedOrder) {
-          // The added-order criterion always needs the full list (the oldest-added are at the end when newest-first).
-          setStatus('Loading all videos (auto-scrolling)…');
-          await WLC.loadAll({ doc, shouldStop: () => state.stop, onProgress: (n) => setStatus(`Loading all videos… ${n} loaded`) });
-        }
-        const incomplete = Boolean(doc.querySelector(WLC.SELECTORS.continuation));
+        // The added-order criterion always needs the full list (the oldest-added are at the end when newest-first).
+        const loadAll = s.loadAllFirst || s.addedOrder;
+        state.log = [];
+        let using = s.removalMode;
+        setStatus(using === 'fast' ? 'Loading the list (Fast)…' : loadAll ? 'Loading all videos (auto-scrolling)…' : 'Reading video details…');
+        const listed = await WLC.listVideos({
+          mode: s.removalMode,
+          api: fastApi(),
+          doc,
+          loadAll,
+          needPageOrder: s.addedOrder,
+          shouldStop: () => state.stop,
+          onLog: logEvent,
+          onFallback: () => {
+            using = 'classic';
+            setStatus(loadAll ? 'Fast mode unavailable — loading all videos (auto-scrolling)…' : 'Fast mode unavailable — reading the page…');
+          },
+          onProgress: (n) => setStatus(`Loading all videos (${modeLabel(using)})… ${n} loaded`),
+        });
+        state.lastMode = listed.mode;
+        const incomplete = listed.incomplete;
         const headerCount = WLC.getPlaylistCount(doc);
-        setStatus('Reading video details…');
-        const videos = await WLC.parseAllSettled({ doc });
+        const videos = listed.videos;
         WLC.annotateAddedOrder(videos, sort.available ? sort.direction : null);
         const ctx = { addedOrder: { available: sort.available, direction: sort.direction, incomplete } };
         const plan = WLC.selectVideos(videos, s, ctx);
@@ -441,10 +481,11 @@
           addedNote = ` Header says ${headerCount.toLocaleString('en-US')} videos, ${videos.length.toLocaleString('en-US')} listed (hidden unavailable videos aren't ranked).`;
         }
         if (s.matchMode === 'all') addedNote += ' Match: all ticked criteria.';
+        const modeNote = listed.fallbackReason ? ` [Classic: Fast mode unavailable — ${listed.fallbackReason}]` : ` [${modeLabel(listed.mode)}]`;
         setStatus(
           (plan.length
             ? `Dry run: ${plan.length} of ${videos.length} videos match. Untick any to keep, then click Remove and confirm.`
-            : `Dry run: no matches among ${videos.length} videos.`) + ageNote + addedNote
+            : `Dry run: no matches among ${videos.length} videos.`) + ageNote + addedNote + modeNote
         );
         return plan;
       } finally {
@@ -465,17 +506,18 @@
       const s = state.settings;
       let stats;
       try {
-        stats = await WLC.removeVideos(entries, {
+        stats = await WLC.removeWithFallback(entries, {
+          mode: s.removalMode,
+          api: fastApi(),
           doc,
           delayMs: s.delayMs,
           fallbackPosition: s.menuFallbackPosition,
           shouldStop: () => state.stop,
-          onLog: (e) => {
-            if (state.log.length < 20000) state.log.push(e);
-          },
+          onLog: logEvent,
+          onFallback: (reason) => setStatus(`Fast mode failed (${reason}) — switching to Classic (page clicks)…`),
           onProgress: (p) => {
             setBar((p.done + p.failed + p.skipped) / p.total);
-            let msg = `Removing… ${p.done}/${p.total} removed`;
+            let msg = `Removing (${modeLabel(p.mode)})… ${p.done}/${p.total} removed`;
             if (p.failed) msg += `, ${p.failed} failed`;
             if (p.skipped) msg += `, ${p.skipped} already gone`;
             if (p.delayMs > s.delayMs) msg += ` (slowed to ${p.delayMs} ms — YouTube may be throttling)`;
@@ -486,11 +528,14 @@
         setBusy(false);
       }
       state.lastStats = stats;
+      state.lastMode = stats.modeUsed;
       state.pending = stats.remaining;
       let msg = `${stats.stopped ? 'Stopped' : stats.aborted ? 'Paused' : 'Done'}: removed ${stats.done} of ${stats.total}.`;
+      msg += stats.modeUsed === 'fast' ? ' [Fast]' : stats.modeUsed === 'fast→classic' ? ' [Fast → Classic fallback]' : stats.fallbackReason ? ' [Classic: Fast mode unavailable]' : ' [Classic]';
       if (stats.skipped) msg += ` ${stats.skipped} were already gone.`;
       if (stats.failed) msg += ` ${stats.failed} failed (${stepSummary(stats.steps)}).`;
       if (stats.aborted) msg += ` Paused after 8 failed videos in a row — YouTube may be throttling or its layout changed.`;
+      if (stats.modeUsed === 'fast' && stats.done) msg += ' Removed rows were taken off this page; reload it to refresh the list from YouTube.';
       if (state.pending.length) msg += ` Click Resume to continue the remaining ${state.pending.length}.`;
       if (stats.failed || stats.aborted) msg += ' Use "Copy debug log" if this keeps happening.';
       setStatus(msg);
@@ -645,13 +690,17 @@
       setBusy(true);
       btnAnalyze.disabled = true;
       try {
-        if (state.settings.loadAllFirst) {
-          aStatus.textContent = 'Loading all videos (auto-scrolling)…';
-          await WLC.loadAll({ doc, shouldStop: () => state.stop, onProgress: (k) => (aStatus.textContent = `Loading all videos… ${k} loaded`) });
-        }
-        aStatus.textContent = 'Reading video details…';
         const t0 = Date.now();
-        const videos = await WLC.parseAllSettled({ doc });
+        aStatus.textContent = state.settings.removalMode === 'fast' ? 'Loading the list (Fast)…' : 'Reading video details…';
+        const listed = await WLC.listVideos({
+          mode: state.settings.removalMode,
+          api: fastApi(),
+          doc,
+          loadAll: state.settings.loadAllFirst,
+          shouldStop: () => state.stop,
+          onProgress: (k) => (aStatus.textContent = `Loading all videos… ${k} loaded`),
+        });
+        const videos = listed.videos;
         const sort = refreshSort();
         WLC.annotateAddedOrder(videos, sort.available ? sort.direction : null);
         const stats = WLC.computeStats(videos, { watchedThreshold: state.settings.watchedThreshold });
@@ -659,7 +708,7 @@
         renderAnalytics(stats);
         const noDur = stats.available - stats.withDuration;
         aStatus.textContent =
-          `Analyzed ${videos.length.toLocaleString('en-US')} videos in ${((Date.now() - t0) / 1000).toFixed(1)} s.` +
+          `Analyzed ${videos.length.toLocaleString('en-US')} videos in ${((Date.now() - t0) / 1000).toFixed(1)} s (${modeLabel(listed.mode)}).` +
           (noDur ? ` ${noDur} without a duration badge (live/upcoming or not rendered) are excluded from duration totals.` : '');
         btnCsv.disabled = btnJson.disabled = !videos.length;
         return stats;
@@ -740,6 +789,7 @@
         invalidatePlan();
         if (t.dataset.k === 'addedSortOverride') refreshSort();
         else applyAddedState();
+        if (t.dataset.k === 'removalMode') applyModeNote();
       } else if (t.matches('input[data-i]')) {
         state.armed = false;
         updateRemoveButton();
@@ -791,6 +841,7 @@
         refreshSort();
       },
       refreshSort,
+      fastApi,
     };
     // Pick up changes made in the popup (or another tab) while the panel is idle.
     try {

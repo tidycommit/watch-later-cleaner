@@ -2,8 +2,12 @@
   "manifest_version": 3,
   "name": "Watch Later Cleaner",
   "short_name": "WL Cleaner",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Clean up your YouTube Watch Later playlist: remove watched, old, unavailable, filtered or all videos \u2014 with a dry-run preview.",
+  "minimum_chrome_version": "111",
+  "background": {
+    "service_worker": "background.js"
+  },
   "permissions": [
     "storage"
   ],
@@ -30,12 +34,25 @@
         "https://www.youtube.com/*"
       ],
       "js": [
+        "lib/innertube.js",
+        "content/page-bridge.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/*"
+      ],
+      "js": [
         "lib/settings.js",
         "lib/parse.js",
         "lib/order.js",
         "lib/filters.js",
         "lib/analytics.js",
         "lib/remover.js",
+        "lib/innertube.js",
+        "lib/fast.js",
         "content/panel.js",
         "content/main.js"
       ],

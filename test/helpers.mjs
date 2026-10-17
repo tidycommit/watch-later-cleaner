@@ -14,7 +14,7 @@ const FAKE_MENU_SRC = fs.readFileSync(path.join(here, 'fixtures/fake-yt-menu.js'
 window.scrollTo = () => {}; // not implemented in jsdom
 
 export function loadWLC() {
-  for (const f of ['settings', 'parse', 'order', 'filters', 'analytics', 'remover']) require(`../extension/lib/${f}.js`);
+  for (const f of ['settings', 'parse', 'order', 'filters', 'analytics', 'remover', 'innertube', 'fast']) require(`../extension/lib/${f}.js`);
   require('../extension/content/panel.js');
   return globalThis.WLC;
 }

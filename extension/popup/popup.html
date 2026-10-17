@@ -34,7 +34,14 @@
       <input type="text" name="titleKeywords" placeholder="comma-separated" />
       <label class="danger"><input type="checkbox" name="removeAll" /> Remove ALL videos</label>
       <h2>Options</h2>
-      <label><input type="checkbox" name="loadAllFirst" /> Auto-scroll to load all first</label>
+      <label title="Fast uses YouTube's own web requests and keeps working in a background tab; Classic clicks each row's menu."
+        >Mode
+        <select name="removalMode">
+          <option value="fast">Fast (works in background)</option>
+          <option value="classic">Classic (page clicks)</option>
+        </select></label
+      >
+      <label><input type="checkbox" name="loadAllFirst" /> Load all first (Classic: auto-scroll)</label>
       <label><input type="checkbox" name="showKept" /> Preview: also list kept videos (with parsed age)</label>
       <label>Delay between removals <input type="number" name="delayMs" min="100" step="50" /> ms</label>
       <label title="Used only if the menu entry can't be found by text or icon (unusual UI language). 0 disables."
@@ -42,7 +49,7 @@
       /></label>
       <p id="saved" class="muted">Settings are saved automatically.</p>
     </form>
-    <p class="muted small">Removal always requires Preview + confirm on the page. Nothing is sent anywhere.</p>
+    <p class="muted small">Removal always requires Preview + confirm on the page. Nothing is sent anywhere except youtube.com.</p>
     <script src="../lib/settings.js"></script>
     <script src="popup.js"></script>
   </body>

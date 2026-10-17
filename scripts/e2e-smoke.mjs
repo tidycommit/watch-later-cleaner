@@ -1,12 +1,13 @@
 // Headless smoke test: load the unpacked extension in Chrome, serve the local fixture at the real
 // Watch Later URL (via request interception — nothing reaches YouTube), and check the panel + dry run.
-// Removal is exercised only against the fake fixture menu. Usage:
+// Removal is exercised only against the fake fixture menu and a mocked /youtubei/v1 endpoint (Fast mode). Usage:
 //   CHROME_PATH=/usr/bin/google-chrome node scripts/e2e-smoke.mjs [screenshot.png]
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 import { generateWatchLaterHtml } from '../test/fixtures/generate.mjs';
+import { createFakeInnertube, buildInitialData, FAKE_YTCFG, generateVideos } from '../test/fixtures/innertube.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const extPath = path.join(root, 'dist', 'extension');
@@ -19,6 +20,7 @@ const fixture = fs
 
 const ageFixture = fs.readFileSync(path.join(root, 'test/fixtures/age-variants.html'), 'utf8');
 let served = fixture;
+let fakeApi = null; // in-memory fake of /youtubei/v1/browse + /browse/edit_playlist (Fast mode section)
 
 const EXPECTED = ['Learn Rust in 10 minutes', 'Lo-fi beats to study to', '[Deleted video]', '[Private video]'];
 
@@ -26,6 +28,9 @@ const browser = await puppeteer.launch({
   executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome',
   headless: true,
   pipe: true,
+  // Keep Chrome's normal background-tab timer throttling (puppeteer disables it by default) so the
+  // Fast-mode background test sees what a real hidden tab sees.
+  ignoreDefaultArgs: ['--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'],
   enableExtensions: [extPath],
   args: ['--no-sandbox', '--window-size=1280,900'],
   defaultViewport: { width: 1280, height: 900 },
@@ -39,7 +44,10 @@ try {
   const page = await browser.newPage();
   await page.setRequestInterception(true);
   page.on('request', (req) => {
-    if (req.url() === WL_URL) req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: served });
+    if (fakeApi && req.url().startsWith('https://www.youtube.com/youtubei/v1/') && req.method() === 'POST') {
+      const r = fakeApi.handle({ url: req.url(), headers: req.headers(), body: req.postData() });
+      req.respond({ status: r.status, contentType: 'application/json; charset=utf-8', body: JSON.stringify(r.json) });
+    } else if (req.url() === WL_URL) req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: served });
     else if (/^https?:/.test(req.url())) req.abort(); // keep the test fully offline
     else req.continue();
   });
@@ -254,6 +262,84 @@ try {
   const pvShot = shot.replace(/wl_cleaner_panel(\.png)$/, 'wl_cleaner_preview_analytics$1');
   await page.screenshot({ path: pvShot });
   console.log(`  screenshot: ${pvShot}`);
+
+  // ---------- Fast mode: mocked InnerTube endpoints, removal keeps going with the tab hidden ----------
+  const N = 100;
+  const FAKE_SAPISID = 'e2eFakeSapisid_NotReal-0123/xyz';
+  const fastVideos = generateVideos(N, 11);
+  fakeApi = createFakeInnertube(fastVideos, { pageSize: 40, sapisid: FAKE_SAPISID, origin: 'https://www.youtube.com' });
+  const ytcfgScript = `<script>window.ytcfg={data_:${JSON.stringify(FAKE_YTCFG)},get:function(k){return this.data_[k];}};window.ytInitialData=${JSON.stringify(buildInitialData(fastVideos, { pageSize: 40 }))};</script>`;
+  served = generateWatchLaterHtml(N, 11).replace('</head>', `${ytcfgScript}</head>`);
+  await page.setCookie({ name: 'SAPISID', value: FAKE_SAPISID, domain: '.youtube.com', path: '/', secure: true });
+  await page.goto(WL_URL, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.getElementById('wlc-panel-host')?.shadowRoot?.querySelector('.fab'), { timeout: 30000 });
+  check(await page.evaluate(() => document.documentElement.getAttribute('data-wlc-bridge') === '1' && typeof window.WLC === 'undefined'), 'main-world bridge installed (and leaves no WLC global on the page)');
+  await sr(() => {
+    const s = document.getElementById('wlc-panel-host').shadowRoot;
+    if (s.querySelector('.panel').hidden) s.querySelector('.fab').click();
+    if (s.querySelector('.panel').classList.contains('expanded')) s.querySelector('.expand').click();
+    const set = (k, v) => {
+      const el = s.querySelector(`[data-k="${k}"]`);
+      if (el.type === 'checkbox') el.checked = v;
+      else el.value = v;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    for (const [k, v] of Object.entries({ removeAll: false, addedOrder: false, olderThan: false, channelFilter: false, titleFilter: false, showKept: false, watched: true, watchedThreshold: '20', unavailable: true, matchMode: 'any', loadAllFirst: true, removalMode: 'fast', delayMs: '150' })) set(k, v);
+    s.querySelector('.btn-preview').click();
+  });
+  await page.waitForFunction(() => /Dry run/.test(document.getElementById('wlc-panel-host').shadowRoot.querySelector('.status').textContent), { timeout: 30000 });
+  const expectedFast = fastVideos.filter((v) => !v.channel || (v.progress != null && v.progress >= 20)).length;
+  const fp = await sr(() => {
+    const s = document.getElementById('wlc-panel-host').shadowRoot;
+    return { status: s.querySelector('.status').textContent, rows: s.querySelectorAll('.list .item').length, mode: s.querySelector('[data-k="removalMode"]').value, note: s.querySelector('.mode-note').textContent };
+  });
+  console.log('  status:', fp.status);
+  check(fp.mode === 'fast' && /\[Fast\]/.test(fp.status) && fp.rows === expectedFast && fakeApi.state.browseCalls === 2 && fakeApi.state.authErrors === 0,
+    `Fast preview listed ${N} videos via ytInitialData + 2 browse continuations (SAPISIDHASH accepted), ${fp.rows} match`);
+  await sr(() => {
+    const s = document.getElementById('wlc-panel-host').shadowRoot;
+    const body = s.querySelector('.body.view-clean');
+    const fs = s.querySelector('.mode-row').closest('fieldset');
+    body.scrollTop += fs.getBoundingClientRect().top - body.getBoundingClientRect().top - 8;
+  });
+  const fastShot = process.env.FAST_SHOT ? path.resolve(process.env.FAST_SHOT) : shot.replace(/wl_cleaner_panel(\.png)$/, 'wl_cleaner_fast_mode$1');
+  await page.screenshot({ path: fastShot });
+  console.log(`  screenshot: ${fastShot}`);
+
+  await sr(() => document.getElementById('wlc-panel-host').shadowRoot.querySelector('.btn-remove').click());
+  await sr(() => document.getElementById('wlc-panel-host').shadowRoot.querySelector('.btn-remove').click());
+  const other = await browser.newPage();
+  await other.bringToFront(); // the Watch Later tab is now a background tab
+  const hiddenAt = Date.now();
+  const visHidden = await page.evaluate(() => document.visibilityState);
+  // Prove the page's own timers really are throttled now (Chrome aligns hidden-tab timers to ~1 s).
+  const timerGap = await page.evaluate(() => new Promise((r) => { const t0 = performance.now(); setTimeout(() => setTimeout(() => r(Math.round(performance.now() - t0)), 10), 10); }));
+  const until = Date.now() + 90000;
+  while (Date.now() < until && fakeApi.state.removed.length < expectedFast) await new Promise((r) => setTimeout(r, 200));
+  const visAfter = await page.evaluate(() => document.visibilityState);
+  let fastStatus = '';
+  for (let k = 0; k < 50 && !/^Done/.test(fastStatus); k++) {
+    fastStatus = await sr(() => document.getElementById('wlc-panel-host').shadowRoot.querySelector('.status').textContent);
+    if (!/^Done/.test(fastStatus)) await new Promise((r) => setTimeout(r, 200));
+  }
+  const edits = fakeApi.state.requests.filter((q) => /edit_playlist/.test(q.url)).map((q) => q.t);
+  const hiddenEdits = edits.filter((t) => t >= hiddenAt);
+  const gaps = hiddenEdits.slice(1).map((t, k) => t - hiddenEdits[k]).sort((a, b) => a - b);
+  const median = gaps.length ? gaps[Math.floor(gaps.length / 2)] : null;
+  console.log(`  hidden: ${visHidden}→${visAfter}; page timer 2×10 ms took ${timerGap} ms; ${hiddenEdits.length}/${edits.length} edit requests while hidden, median gap ${median} ms, total ${edits.length ? edits[edits.length - 1] - hiddenAt : '?'} ms`);
+  console.log('  status:', fastStatus);
+  check(visHidden === 'hidden' && visAfter === 'hidden', 'Watch Later tab stayed hidden (background) during removal');
+  check(
+    fakeApi.state.removed.length === expectedFast && hiddenEdits.length >= expectedFast - 1 && median != null && median < 900 && new RegExp(`^Done: removed ${expectedFast} of ${expectedFast}\\. \\[Fast\\]`).test(fastStatus),
+    `Fast removal finished in a hidden tab: ${fakeApi.state.removed.length}/${expectedFast} via edit_playlist, median ${median} ms between requests (hidden-tab page timers: ${timerGap} ms)`
+  );
+  const domLeft = await page.$$eval('ytd-playlist-video-renderer', (els) => els.length);
+  check(domLeft === N - expectedFast && fakeApi.state.authErrors === 0, `removed rows taken off the page (${domLeft} left), every request carried a valid SAPISIDHASH`);
+  await page.bringToFront();
+  await other.close();
+  const editBody = fakeApi.state.requests.find((q) => /edit_playlist/.test(q.url)).body;
+  check(editBody.playlistId === 'WL' && editBody.actions.length === 1 && editBody.actions[0].action === 'ACTION_REMOVE_VIDEO' && /^[0-9A-F]{16}$/.test(editBody.actions[0].setVideoId), 'edit_playlist body: playlistId WL, one ACTION_REMOVE_VIDEO with setVideoId');
+  fakeApi = null;
 } finally {
   await browser.close();
 }
