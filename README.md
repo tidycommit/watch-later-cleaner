@@ -70,6 +70,22 @@ in Excel) and cells starting with `= + - @` are prefixed with `'` to prevent spr
 Use **⤢** in the panel header for a wider, two-column layout. Everything is computed in the page; nothing is sent anywhere.
 A 2,750-item list is analyzed in about a second.
 
+## Preview analytics
+After **Preview** (dry run) on the Clean tab, a collapsible **Preview analytics** block above the list summarizes the videos currently ticked for removal. It reuses the Analytics calculations and charts:
+
+- selected vs total and % of the playlist, hours that would be freed, average duration
+- videos and hours **after removal**, with a compact before/after bar chart
+- **Matched by criterion** counts. With Match = any it also shows overlap: how many matched one criterion vs 2+, and the most common combinations
+- watched / partially watched / unwatched / unavailable among the selection
+- publish-age and duration buckets
+- added-rank range, when the playlist is sorted by Date added
+- top channels in the selection. Click one to **keep** (untick) every video from that channel
+- **Tick all**, plus **Export CSV / JSON** of the selected set (same columns as the Analytics export)
+
+It updates live as you tick or untick rows (debounced, one pass), so it stays fast on 2,700+ items. Changing any setting clears the preview and hides the block.
+
+![preview analytics](docs/preview-analytics.png)
+
 ## How the age filter works
 
 - **Where the age comes from:** each item's `#video-info` spans (classic layout, e.g. `1.2M views` `•` `3 years ago`),

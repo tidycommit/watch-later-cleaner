@@ -160,6 +160,57 @@
     return stats;
   }
 
+  /**
+   * Stats for a preview (the matched set that would be removed) relative to the whole playlist.
+   * all: every parsed video; selected: [{ video, reasons }] currently ticked; base: computeStats(all) (optional, cached).
+   */
+  function computePreviewStats(all, selected, opts = {}) {
+    const base = opts.base || computeStats(all, opts);
+    const videos = selected.map((m) => m.video);
+    const matched = computeStats(videos, opts);
+    const criteria = {};
+    const combos = {};
+    let single = 0;
+    let multi = 0;
+    let minRank = null;
+    let maxRank = null;
+    for (const m of selected) {
+      const keys = Array.from(new Set(m.reasons.map(WLC.reasonKey)));
+      for (const k of keys) criteria[k] = (criteria[k] || 0) + 1;
+      if (keys.length > 1) {
+        multi++;
+        const combo = keys.join(' + ');
+        combos[combo] = (combos[combo] || 0) + 1;
+      } else single++;
+      const r = m.video.addedRank;
+      if (r != null) {
+        if (minRank == null || r < minRank) minRank = r;
+        if (maxRank == null || r > maxRank) maxRank = r;
+      }
+    }
+    const freedSec = matched.totalDurationSec;
+    return {
+      total: all.length,
+      count: videos.length,
+      pct: all.length ? videos.length / all.length : 0,
+      freedSec,
+      matched,
+      base,
+      criteria,
+      overlap: {
+        single,
+        multi,
+        combos: Object.entries(combos)
+          .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+          .slice(0, 6)
+          .map(([combo, count]) => ({ combo, count })),
+      },
+      addedRange: minRank == null ? null : { min: minRank, max: maxRank, total: videos.find((v) => v.addedTotal)?.addedTotal || null },
+      before: { videos: all.length, durationSec: base.totalDurationSec },
+      after: { videos: all.length - videos.length, durationSec: Math.max(0, base.totalDurationSec - freedSec) },
+    };
+  }
+
   function formatDuration(sec) {
     if (sec == null) return '';
     const s = Math.round(sec);
@@ -221,6 +272,7 @@
     ageBucket,
     durationBucket,
     computeStats,
+    computePreviewStats,
     addedOrderStats,
     formatDuration,
     formatHours,
