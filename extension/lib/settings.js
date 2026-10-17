@@ -28,7 +28,10 @@
     loadAllFirst: true,
     showKept: false, // also list non-matching videos (with their parsed age) in the preview
     menuFallbackPosition: 3, // 1-based menu position used when text/icon match fails; 0 = disabled
+    removalMode: 'fast', // fast = YouTube's own web requests (works in background tabs) | classic = page clicks
   });
+
+  const REMOVAL_MODES = ['fast', 'classic'];
 
   const UNITS = ['days', 'weeks', 'months', 'years'];
 
@@ -53,6 +56,7 @@
     if (!['oldestN', 'below', 'range'].includes(s.addedMode)) s.addedMode = DEFAULTS.addedMode;
     if (!['auto', 'newest', 'oldest'].includes(s.addedSortOverride)) s.addedSortOverride = 'auto';
     if (s.matchMode !== 'all') s.matchMode = 'any';
+    if (!REMOVAL_MODES.includes(s.removalMode)) s.removalMode = DEFAULTS.removalMode;
     s.addedN = Math.round(clampNumber(s.addedN, 1, 100000, DEFAULTS.addedN));
     s.addedFrom = Math.round(clampNumber(s.addedFrom, 1, 100000, DEFAULTS.addedFrom));
     s.addedTo = Math.round(clampNumber(s.addedTo, 0, 100000, 0));
@@ -94,6 +98,6 @@
     return s;
   }
 
-  Object.assign(WLC, { DEFAULTS, UNITS, STORAGE_KEY, normalizeSettings, loadSettings, saveSettings });
+  Object.assign(WLC, { DEFAULTS, UNITS, REMOVAL_MODES, STORAGE_KEY, normalizeSettings, loadSettings, saveSettings });
   if (typeof module !== 'undefined' && module.exports) module.exports = WLC;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -16,6 +16,7 @@ if (manifest.manifest_version !== 3) throw new Error('manifest_version must be 3
 const referenced = [
   ...manifest.content_scripts.flatMap((c) => c.js),
   manifest.action.default_popup,
+  ...(manifest.background && manifest.background.service_worker ? [manifest.background.service_worker] : []),
   ...Object.values(manifest.icons),
 ];
 for (const f of referenced) if (!fs.existsSync(path.join(src, f))) throw new Error(`missing file: ${f}`);
