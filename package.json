@@ -1,0 +1,25 @@
+{
+  "name": "watch-later-cleaner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chrome extension (Manifest V3) to clean up your YouTube Watch Later playlist.",
+  "license": "MIT",
+  "scripts": {
+    "test": "vitest run",
+    "lint": "eslint .",
+    "icons": "python3 scripts/make_icons.py",
+    "build": "node scripts/build.mjs",
+    "e2e": "node scripts/e2e-smoke.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
+    "jsdom": "^26.1.0",
+    "puppeteer-core": "^25.14.0",
+    "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

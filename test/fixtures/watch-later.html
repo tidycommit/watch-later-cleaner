@@ -1,0 +1,403 @@
+<!doctype html>
+<!-- Hand-written sample of YouTube's Watch Later playlist markup (structure only, fake data) used for tests. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Watch later - YouTube</title>
+<style>body{font-family:Roboto,Arial,sans-serif;margin:0;background:#f9f9f9} ytd-playlist-video-renderer{display:flex;justify-content:space-between;padding:8px 24px;border-bottom:1px solid #e5e5e5;background:#fff} #video-title{color:#0f0f0f;font-weight:500;text-decoration:none} ytd-thumbnail-overlay-resume-playback-renderer{display:block;height:4px;width:120px;background:#ccc} #progress{height:4px;background:red} ytd-channel-name a{color:#606060;font-size:12px} #video-info{color:#606060;font-size:12px} h1{padding:16px 24px;margin:0}</style>
+</head>
+<body>
+  <ytd-app>
+    <h1>Watch later</h1>
+    <ytd-browse page-subtype="playlist">
+      <ytd-playlist-video-list-renderer class="style-scope ytd-item-section-renderer">
+        <div id="contents" class="style-scope ytd-playlist-video-list-renderer">
+        <ytd-playlist-video-renderer class="style-scope ytd-playlist-video-list-renderer" lockup="true">
+          <div id="content" class="style-scope ytd-playlist-video-renderer">
+            <div id="index-container" class="style-scope ytd-playlist-video-renderer">
+              <yt-formatted-string id="index" class="style-scope ytd-playlist-video-renderer">1</yt-formatted-string>
+            </div>
+            <div id="container" class="style-scope ytd-playlist-video-renderer">
+              <ytd-thumbnail class="style-scope ytd-playlist-video-renderer">
+                <a id="thumbnail" class="yt-simple-endpoint inline-block style-scope ytd-thumbnail" href="/watch?v=aaaaaaaaaa1&amp;list=WL&amp;index=1&amp;pp=gAQBiAQB">
+                  <div id="overlays" class="style-scope ytd-thumbnail">
+              <ytd-thumbnail-overlay-resume-playback-renderer class="style-scope ytd-thumbnail">
+                <div id="progress" class="style-scope ytd-thumbnail-overlay-resume-playback-renderer" style="width: 100%;"></div>
+              </ytd-thumbnail-overlay-resume-playback-renderer>
+                  </div>
+                </a>
+              </ytd-thumbnail>
+              <div id="meta" class="style-scope ytd-playlist-video-renderer">
+                <h3 class="style-scope ytd-playlist-video-renderer">
+                  <a id="video-title" class="yt-simple-endpoint style-scope ytd-playlist-video-renderer" href="/watch?v=aaaaaaaaaa1&amp;list=WL&amp;index=1&amp;pp=gAQBiAQB" title="Learn Rust in 10 minutes">
+                    Learn Rust in 10 minutes
+                  </a>
+                </h3>
+                <ytd-video-meta-block class="playlist style-scope ytd-playlist-video-renderer">
+                  <div id="metadata" class="style-scope ytd-video-meta-block">
+                    <div id="byline-container" class="style-scope ytd-video-meta-block">
+                      <ytd-channel-name id="channel-name" class="style-scope ytd-video-meta-block">
+                        <div id="container" class="style-scope ytd-channel-name"><div id="text-container" class="style-scope ytd-channel-name">
+                          <yt-formatted-string id="text" class="style-scope ytd-channel-name" title="Tech Channel"><a class="yt-simple-endpoint style-scope yt-formatted-string" spellcheck="false" href="/@techchannel" dir="auto">Tech Channel</a></yt-formatted-string>
+                        </div></div>
+                      </ytd-channel-name>
+                      <yt-formatted-string id="video-info" class="style-scope ytd-video-meta-block"><span dir="auto" class="style-scope yt-formatted-string">1.2M views</span><span dir="auto" class="style-scope yt-formatted-string"> • </span><span dir="auto" class="style-scope yt-formatted-string">2 years ago</span></yt-formatted-string>
+                    </div>
+                  </div>
+                </ytd-video-meta-block>
+              </div>
+            </div>
+          </div>
+          <div id="menu" class="style-scope ytd-playlist-video-renderer">
+            <ytd-menu-renderer class="style-scope ytd-playlist-video-renderer">
+              <yt-icon-button id="button" class="dropdown-trigger style-scope ytd-menu-renderer">
+                <button id="button" class="style-scope yt-icon-button" aria-label="Action menu"><yt-icon class="style-scope ytd-menu-renderer"></yt-icon></button>
+              </yt-icon-button>
+            </ytd-menu-renderer>
+          </div>
+        </ytd-playlist-video-renderer>
+        <ytd-playlist-video-renderer class="style-scope ytd-playlist-video-list-renderer" lockup="true">
+          <div id="content" class="style-scope ytd-playlist-video-renderer">
+            <div id="index-container" class="style-scope ytd-playlist-video-renderer">
+              <yt-formatted-string id="index" class="style-scope ytd-playlist-video-renderer">2</yt-formatted-string>
+            </div>
+            <div id="container" class="style-scope ytd-playlist-video-renderer">
+              <ytd-thumbnail class="style-scope ytd-playlist-video-renderer">
+                <a id="thumbnail" class="yt-simple-endpoint inline-block style-scope ytd-thumbnail" href="/watch?v=aaaaaaaaaa2&amp;list=WL&amp;index=2&amp;pp=gAQBiAQB">
+                  <div id="overlays" class="style-scope ytd-thumbnail">
+              <ytd-thumbnail-overlay-resume-playback-renderer class="style-scope ytd-thumbnail">
+                <div id="progress" class="style-scope ytd-thumbnail-overlay-resume-playback-renderer" style="width: 95%;"></div>
+              </ytd-thumbnail-overlay-resume-playback-renderer>
+                  </div>
+                </a>
+              </ytd-thumbnail>
+              <div id="meta" class="style-scope ytd-playlist-video-renderer">
+                <h3 class="style-scope ytd-playlist-video-renderer">
+                  <a id="video-title" class="yt-simple-endpoint style-scope ytd-playlist-video-renderer" href="/watch?v=aaaaaaaaaa2&amp;list=WL&amp;index=2&amp;pp=gAQBiAQB" title="Lo-fi beats to study to">
+                    Lo-fi beats to study to
+                  </a>
+                </h3>
+                <ytd-video-meta-block class="playlist style-scope ytd-playlist-video-renderer">
+                  <div id="metadata" class="style-scope ytd-video-meta-block">
+                    <div id="byline-container" class="style-scope ytd-video-meta-block">
+                      <ytd-channel-name id="channel-name" class="style-scope ytd-video-meta-block">
+                        <div id="container" class="style-scope ytd-channel-name"><div id="text-container" class="style-scope ytd-channel-name">
+                          <yt-formatted-string id="text" class="style-scope ytd-channel-name" title="Chill Music"><a class="yt-simple-endpoint style-scope yt-formatted-string" spellcheck="false" href="/@chillmusic" dir="auto">Chill Music</a></yt-formatted-string>
+                        </div></div>
+                      </ytd-channel-name>
+                      <yt-formatted-string id="video-info" class="style-scope ytd-video-meta-block"><span dir="auto" class="style-scope yt-formatted-string">8.4M views</span><span dir="auto" class="style-scope yt-formatted-string"> • </span><span dir="auto" class="style-scope yt-formatted-string">3 months ago</span></yt-formatted-string>
+                    </div>
+                  </div>
+                </ytd-video-meta-block>
+              </div>
+            </div>
+          </div>
+          <div id="menu" class="style-scope ytd-playlist-video-renderer">
+            <ytd-menu-renderer class="style-scope ytd-playlist-video-renderer">
+              <yt-icon-button id="button" class="dropdown-trigger style-scope ytd-menu-renderer">
+                <button id="button" class="style-scope yt-icon-button" aria-label="Action menu"><yt-icon class="style-scope ytd-menu-renderer"></yt-icon></button>
+              </yt-icon-button>
+            </ytd-menu-renderer>
+          </div>
+        </ytd-playlist-video-renderer>
+        <ytd-playlist-video-renderer class="style-scope ytd-playlist-video-list-renderer" lockup="true">
+          <div id="content" class="style-scope ytd-playlist-video-renderer">
+            <div id="index-container" class="style-scope ytd-playlist-video-renderer">
+              <yt-formatted-string id="index" class="style-scope ytd-playlist-video-renderer">3</yt-formatted-string>
+            </div>
+            <div id="container" class="style-scope ytd-playlist-video-renderer">
+              <ytd-thumbnail class="style-scope ytd-playlist-video-renderer">
+                <a id="thumbnail" class="yt-simple-endpoint inline-block style-scope ytd-thumbnail" href="/watch?v=aaaaaaaaaa3&amp;list=WL&amp;index=3&amp;pp=gAQBiAQB">
+                  <div id="overlays" class="style-scope ytd-thumbnail">
+              <ytd-thumbnail-overlay-resume-playback-renderer class="style-scope ytd-thumbnail">
+                <div id="progress" class="style-scope ytd-thumbnail-overlay-resume-playback-renderer" style="width: 40%;"></div>
+              </ytd-thumbnail-overlay-resume-playback-renderer>
+                  </div>
+                </a>
+              </ytd-thumbnail>
+              <div id="meta" class="style-scope ytd-playlist-video-renderer">
+                <h3 class="style-scope ytd-playlist-video-renderer">
+                  <a id="video-title" class="yt-simple-endpoint style-scope ytd-playlist-video-renderer" href="/watch?v=aaaaaaaaaa3&amp;list=WL&amp;index=3&amp;pp=gAQBiAQB" title="Cooking pasta like a pro">
+                    Cooking pasta like a pro
+                  </a>
+                </h3>
+                <ytd-video-meta-block class="playlist style-scope ytd-playlist-video-renderer">
+                  <div id="metadata" class="style-scope ytd-video-meta-block">
+                    <div id="byline-container" class="style-scope ytd-video-meta-block">
+                      <ytd-channel-name id="channel-name" class="style-scope ytd-video-meta-block">
+                        <div id="container" class="style-scope ytd-channel-name"><div id="text-container" class="style-scope ytd-channel-name">
+                          <yt-formatted-string id="text" class="style-scope ytd-channel-name" title="Kitchen Lab"><a class="yt-simple-endpoint style-scope yt-formatted-string" spellcheck="false" href="/@kitchenlab" dir="auto">Kitchen Lab</a></yt-formatted-string>
+                        </div></div>
+                      </ytd-channel-name>
+                      <yt-formatted-string id="video-info" class="style-scope ytd-video-meta-block"><span dir="auto" class="style-scope yt-formatted-string">310K views</span><span dir="auto" class="style-scope yt-formatted-string"> • </span><span dir="auto" class="style-scope yt-formatted-string">5 years ago</span></yt-formatted-string>
+                    </div>
+                  </div>
+                </ytd-video-meta-block>
+              </div>
+            </div>
+          </div>
+          <div id="menu" class="style-scope ytd-playlist-video-renderer">
+            <ytd-menu-renderer class="style-scope ytd-playlist-video-renderer">
+              <yt-icon-button id="button" class="dropdown-trigger style-scope ytd-menu-renderer">
+                <button id="button" class="style-scope yt-icon-button" aria-label="Action menu"><yt-icon class="style-scope ytd-menu-renderer"></yt-icon></button>
+              </yt-icon-button>
+            </ytd-menu-renderer>
+          </div>
+        </ytd-playlist-video-renderer>
+        <ytd-playlist-video-renderer class="style-scope ytd-playlist-video-list-renderer" lockup="true">
+          <div id="content" class="style-scope ytd-playlist-video-renderer">
+            <div id="index-container" class="style-scope ytd-playlist-video-renderer">
+              <yt-formatted-string id="index" class="style-scope ytd-playlist-video-renderer">4</yt-formatted-string>
+            </div>
+            <div id="container" class="style-scope ytd-playlist-video-renderer">
+              <ytd-thumbnail class="style-scope ytd-playlist-video-renderer">
+                <a id="thumbnail" class="yt-simple-endpoint inline-block style-scope ytd-thumbnail" href="/watch?v=aaaaaaaaaa4&amp;list=WL&amp;index=4&amp;pp=gAQBiAQB">
+                  <div id="overlays" class="style-scope ytd-thumbnail">
+                  </div>
+                </a>
+              </ytd-thumbnail>
+              <div id="meta" class="style-scope ytd-playlist-video-renderer">
+                <h3 class="style-scope ytd-playlist-video-renderer">
+                  <a id="video-title" class="yt-simple-endpoint style-scope ytd-playlist-video-renderer" href="/watch?v=aaaaaaaaaa4&amp;list=WL&amp;index=4&amp;pp=gAQBiAQB" title="[Deleted video]">
+                    [Deleted video]
+                  </a>
+                </h3>
+                <ytd-video-meta-block class="playlist style-scope ytd-playlist-video-renderer">
+                  <div id="metadata" class="style-scope ytd-video-meta-block">
+                    <div id="byline-container" class="style-scope ytd-video-meta-block">
+                      <ytd-channel-name id="channel-name" class="style-scope ytd-video-meta-block">
+                        <div id="container" class="style-scope ytd-channel-name"><div id="text-container" class="style-scope ytd-channel-name">
+                          <yt-formatted-string id="text" class="style-scope ytd-channel-name" title=""></yt-formatted-string>
+                        </div></div>
+                      </ytd-channel-name>
+                      <yt-formatted-string id="video-info" class="style-scope ytd-video-meta-block"></yt-formatted-string>
+                    </div>
+                  </div>
+                </ytd-video-meta-block>
+              </div>
+            </div>
+          </div>
+          <div id="menu" class="style-scope ytd-playlist-video-renderer">
+            <ytd-menu-renderer class="style-scope ytd-playlist-video-renderer">
+              <yt-icon-button id="button" class="dropdown-trigger style-scope ytd-menu-renderer">
+                <button id="button" class="style-scope yt-icon-button" aria-label="Action menu"><yt-icon class="style-scope ytd-menu-renderer"></yt-icon></button>
+              </yt-icon-button>
+            </ytd-menu-renderer>
+          </div>
+        </ytd-playlist-video-renderer>
+        <ytd-playlist-video-renderer class="style-scope ytd-playlist-video-list-renderer" lockup="true">
+          <div id="content" class="style-scope ytd-playlist-video-renderer">
+            <div id="index-container" class="style-scope ytd-playlist-video-renderer">
+              <yt-formatted-string id="index" class="style-scope ytd-playlist-video-renderer">5</yt-formatted-string>
+            </div>
+            <div id="container" class="style-scope ytd-playlist-video-renderer">
+              <ytd-thumbnail class="style-scope ytd-playlist-video-renderer">
+                <a id="thumbnail" class="yt-simple-endpoint inline-block style-scope ytd-thumbnail" href="/watch?v=aaaaaaaaaa5&amp;list=WL&amp;index=5&amp;pp=gAQBiAQB">
+                  <div id="overlays" class="style-scope ytd-thumbnail">
+                  </div>
+                </a>
+              </ytd-thumbnail>
+              <div id="meta" class="style-scope ytd-playlist-video-renderer">
+                <h3 class="style-scope ytd-playlist-video-renderer">
+                  <a id="video-title" class="yt-simple-endpoint style-scope ytd-playlist-video-renderer" href="/watch?v=aaaaaaaaaa5&amp;list=WL&amp;index=5&amp;pp=gAQBiAQB" title="[Private video]">
+                    [Private video]
+                  </a>
+                </h3>
+                <ytd-video-meta-block class="playlist style-scope ytd-playlist-video-renderer">
+                  <div id="metadata" class="style-scope ytd-video-meta-block">
+                    <div id="byline-container" class="style-scope ytd-video-meta-block">
+                      <ytd-channel-name id="channel-name" class="style-scope ytd-video-meta-block">
+                        <div id="container" class="style-scope ytd-channel-name"><div id="text-container" class="style-scope ytd-channel-name">
+                          <yt-formatted-string id="text" class="style-scope ytd-channel-name" title=""></yt-formatted-string>
+                        </div></div>
+                      </ytd-channel-name>
+                      <yt-formatted-string id="video-info" class="style-scope ytd-video-meta-block"></yt-formatted-string>
+                    </div>
+                  </div>
+                </ytd-video-meta-block>
+              </div>
+            </div>
+          </div>
+          <div id="menu" class="style-scope ytd-playlist-video-renderer">
+            <ytd-menu-renderer class="style-scope ytd-playlist-video-renderer">
+              <yt-icon-button id="button" class="dropdown-trigger style-scope ytd-menu-renderer">
+                <button id="button" class="style-scope yt-icon-button" aria-label="Action menu"><yt-icon class="style-scope ytd-menu-renderer"></yt-icon></button>
+              </yt-icon-button>
+            </ytd-menu-renderer>
+          </div>
+        </ytd-playlist-video-renderer>
+        <ytd-playlist-video-renderer class="style-scope ytd-playlist-video-list-renderer" lockup="true">
+          <div id="content" class="style-scope ytd-playlist-video-renderer">
+            <div id="index-container" class="style-scope ytd-playlist-video-renderer">
+              <yt-formatted-string id="index" class="style-scope ytd-playlist-video-renderer">6</yt-formatted-string>
+            </div>
+            <div id="container" class="style-scope ytd-playlist-video-renderer">
+              <ytd-thumbnail class="style-scope ytd-playlist-video-renderer">
+                <a id="thumbnail" class="yt-simple-endpoint inline-block style-scope ytd-thumbnail" href="/watch?v=aaaaaaaaaa6&amp;list=WL&amp;index=6&amp;pp=gAQBiAQB">
+                  <div id="overlays" class="style-scope ytd-thumbnail">
+                  </div>
+                </a>
+              </ytd-thumbnail>
+              <div id="meta" class="style-scope ytd-playlist-video-renderer">
+                <h3 class="style-scope ytd-playlist-video-renderer">
+                  <a id="video-title" class="yt-simple-endpoint style-scope ytd-playlist-video-renderer" href="/watch?v=aaaaaaaaaa6&amp;list=WL&amp;index=6&amp;pp=gAQBiAQB" title="Unboxing the new phone">
+                    Unboxing the new phone
+                  </a>
+                </h3>
+                <ytd-video-meta-block class="playlist style-scope ytd-playlist-video-renderer">
+                  <div id="metadata" class="style-scope ytd-video-meta-block">
+                    <div id="byline-container" class="style-scope ytd-video-meta-block">
+                      <ytd-channel-name id="channel-name" class="style-scope ytd-video-meta-block">
+                        <div id="container" class="style-scope ytd-channel-name"><div id="text-container" class="style-scope ytd-channel-name">
+                          <yt-formatted-string id="text" class="style-scope ytd-channel-name" title="Gadget Reviews"><a class="yt-simple-endpoint style-scope yt-formatted-string" spellcheck="false" href="/@gadgetreviews" dir="auto">Gadget Reviews</a></yt-formatted-string>
+                        </div></div>
+                      </ytd-channel-name>
+                      <yt-formatted-string id="video-info" class="style-scope ytd-video-meta-block"><span dir="auto" class="style-scope yt-formatted-string">56K views</span><span dir="auto" class="style-scope yt-formatted-string"> • </span><span dir="auto" class="style-scope yt-formatted-string">2 weeks ago</span></yt-formatted-string>
+                    </div>
+                  </div>
+                </ytd-video-meta-block>
+              </div>
+            </div>
+          </div>
+          <div id="menu" class="style-scope ytd-playlist-video-renderer">
+            <ytd-menu-renderer class="style-scope ytd-playlist-video-renderer">
+              <yt-icon-button id="button" class="dropdown-trigger style-scope ytd-menu-renderer">
+                <button id="button" class="style-scope yt-icon-button" aria-label="Action menu"><yt-icon class="style-scope ytd-menu-renderer"></yt-icon></button>
+              </yt-icon-button>
+            </ytd-menu-renderer>
+          </div>
+        </ytd-playlist-video-renderer>
+        <ytd-playlist-video-renderer class="style-scope ytd-playlist-video-list-renderer" lockup="true">
+          <div id="content" class="style-scope ytd-playlist-video-renderer">
+            <div id="index-container" class="style-scope ytd-playlist-video-renderer">
+              <yt-formatted-string id="index" class="style-scope ytd-playlist-video-renderer">7</yt-formatted-string>
+            </div>
+            <div id="container" class="style-scope ytd-playlist-video-renderer">
+              <ytd-thumbnail class="style-scope ytd-playlist-video-renderer">
+                <a id="thumbnail" class="yt-simple-endpoint inline-block style-scope ytd-thumbnail" href="/watch?v=aaaaaaaaaa7&amp;list=WL&amp;index=7&amp;pp=gAQBiAQB">
+                  <div id="overlays" class="style-scope ytd-thumbnail">
+              <ytd-thumbnail-overlay-resume-playback-renderer class="style-scope ytd-thumbnail">
+                <div id="progress" class="style-scope ytd-thumbnail-overlay-resume-playback-renderer" style="width: 89%;"></div>
+              </ytd-thumbnail-overlay-resume-playback-renderer>
+                  </div>
+                </a>
+              </ytd-thumbnail>
+              <div id="meta" class="style-scope ytd-playlist-video-renderer">
+                <h3 class="style-scope ytd-playlist-video-renderer">
+                  <a id="video-title" class="yt-simple-endpoint style-scope ytd-playlist-video-renderer" href="/watch?v=aaaaaaaaaa7&amp;list=WL&amp;index=7&amp;pp=gAQBiAQB" title="Full Course: JavaScript for beginners">
+                    Full Course: JavaScript for beginners
+                  </a>
+                </h3>
+                <ytd-video-meta-block class="playlist style-scope ytd-playlist-video-renderer">
+                  <div id="metadata" class="style-scope ytd-video-meta-block">
+                    <div id="byline-container" class="style-scope ytd-video-meta-block">
+                      <ytd-channel-name id="channel-name" class="style-scope ytd-video-meta-block">
+                        <div id="container" class="style-scope ytd-channel-name"><div id="text-container" class="style-scope ytd-channel-name">
+                          <yt-formatted-string id="text" class="style-scope ytd-channel-name" title="Tech Channel"><a class="yt-simple-endpoint style-scope yt-formatted-string" spellcheck="false" href="/@techchannel" dir="auto">Tech Channel</a></yt-formatted-string>
+                        </div></div>
+                      </ytd-channel-name>
+                      <yt-formatted-string id="video-info" class="style-scope ytd-video-meta-block"><span dir="auto" class="style-scope yt-formatted-string">4M views</span><span dir="auto" class="style-scope yt-formatted-string"> • </span><span dir="auto" class="style-scope yt-formatted-string">1 year ago</span></yt-formatted-string>
+                    </div>
+                  </div>
+                </ytd-video-meta-block>
+              </div>
+            </div>
+          </div>
+          <div id="menu" class="style-scope ytd-playlist-video-renderer">
+            <ytd-menu-renderer class="style-scope ytd-playlist-video-renderer">
+              <yt-icon-button id="button" class="dropdown-trigger style-scope ytd-menu-renderer">
+                <button id="button" class="style-scope yt-icon-button" aria-label="Action menu"><yt-icon class="style-scope ytd-menu-renderer"></yt-icon></button>
+              </yt-icon-button>
+            </ytd-menu-renderer>
+          </div>
+        </ytd-playlist-video-renderer>
+        <ytd-playlist-video-renderer class="style-scope ytd-playlist-video-list-renderer" lockup="true">
+          <div id="content" class="style-scope ytd-playlist-video-renderer">
+            <div id="index-container" class="style-scope ytd-playlist-video-renderer">
+              <yt-formatted-string id="index" class="style-scope ytd-playlist-video-renderer">8</yt-formatted-string>
+            </div>
+            <div id="container" class="style-scope ytd-playlist-video-renderer">
+              <ytd-thumbnail class="style-scope ytd-playlist-video-renderer">
+                <a id="thumbnail" class="yt-simple-endpoint inline-block style-scope ytd-thumbnail" href="/watch?v=aaaaaaaaaa8&amp;list=WL&amp;index=8&amp;pp=gAQBiAQB">
+                  <div id="overlays" class="style-scope ytd-thumbnail">
+              <ytd-thumbnail-overlay-resume-playback-renderer class="style-scope ytd-thumbnail">
+                <div id="progress" class="style-scope ytd-thumbnail-overlay-resume-playback-renderer" style="width: 10%;"></div>
+              </ytd-thumbnail-overlay-resume-playback-renderer>
+                  </div>
+                </a>
+              </ytd-thumbnail>
+              <div id="meta" class="style-scope ytd-playlist-video-renderer">
+                <h3 class="style-scope ytd-playlist-video-renderer">
+                  <a id="video-title" class="yt-simple-endpoint style-scope ytd-playlist-video-renderer" href="/watch?v=aaaaaaaaaa8&amp;list=WL&amp;index=8&amp;pp=gAQBiAQB" title="Live concert highlights">
+                    Live concert highlights
+                  </a>
+                </h3>
+                <ytd-video-meta-block class="playlist style-scope ytd-playlist-video-renderer">
+                  <div id="metadata" class="style-scope ytd-video-meta-block">
+                    <div id="byline-container" class="style-scope ytd-video-meta-block">
+                      <ytd-channel-name id="channel-name" class="style-scope ytd-video-meta-block">
+                        <div id="container" class="style-scope ytd-channel-name"><div id="text-container" class="style-scope ytd-channel-name">
+                          <yt-formatted-string id="text" class="style-scope ytd-channel-name" title="Chill Music"><a class="yt-simple-endpoint style-scope yt-formatted-string" spellcheck="false" href="/@chillmusic" dir="auto">Chill Music</a></yt-formatted-string>
+                        </div></div>
+                      </ytd-channel-name>
+                      <yt-formatted-string id="video-info" class="style-scope ytd-video-meta-block"><span dir="auto" class="style-scope yt-formatted-string">900K views</span><span dir="auto" class="style-scope yt-formatted-string"> • </span><span dir="auto" class="style-scope yt-formatted-string">Streamed 6 years ago</span></yt-formatted-string>
+                    </div>
+                  </div>
+                </ytd-video-meta-block>
+              </div>
+            </div>
+          </div>
+          <div id="menu" class="style-scope ytd-playlist-video-renderer">
+            <ytd-menu-renderer class="style-scope ytd-playlist-video-renderer">
+              <yt-icon-button id="button" class="dropdown-trigger style-scope ytd-menu-renderer">
+                <button id="button" class="style-scope yt-icon-button" aria-label="Action menu"><yt-icon class="style-scope ytd-menu-renderer"></yt-icon></button>
+              </yt-icon-button>
+            </ytd-menu-renderer>
+          </div>
+        </ytd-playlist-video-renderer>
+        <ytd-playlist-video-renderer class="style-scope ytd-playlist-video-list-renderer" lockup="true">
+          <div id="content" class="style-scope ytd-playlist-video-renderer">
+            <div id="index-container" class="style-scope ytd-playlist-video-renderer">
+              <yt-formatted-string id="index" class="style-scope ytd-playlist-video-renderer">9</yt-formatted-string>
+            </div>
+            <div id="container" class="style-scope ytd-playlist-video-renderer">
+              <ytd-thumbnail class="style-scope ytd-playlist-video-renderer">
+                <a id="thumbnail" class="yt-simple-endpoint inline-block style-scope ytd-thumbnail" href="/watch?v=aaaaaaaaaa9&amp;list=WL&amp;index=9&amp;pp=gAQBiAQB">
+                  <div id="overlays" class="style-scope ytd-thumbnail">
+                  </div>
+                </a>
+              </ytd-thumbnail>
+              <div id="meta" class="style-scope ytd-playlist-video-renderer">
+                <h3 class="style-scope ytd-playlist-video-renderer">
+                  <a id="video-title" class="yt-simple-endpoint style-scope ytd-playlist-video-renderer" href="/watch?v=aaaaaaaaaa9&amp;list=WL&amp;index=9&amp;pp=gAQBiAQB" title="Podcast episode #42 – productivity">
+                    Podcast episode #42 – productivity
+                  </a>
+                </h3>
+                <ytd-video-meta-block class="playlist style-scope ytd-playlist-video-renderer">
+                  <div id="metadata" class="style-scope ytd-video-meta-block">
+                    <div id="byline-container" class="style-scope ytd-video-meta-block">
+                      <ytd-channel-name id="channel-name" class="style-scope ytd-video-meta-block">
+                        <div id="container" class="style-scope ytd-channel-name"><div id="text-container" class="style-scope ytd-channel-name">
+                          <yt-formatted-string id="text" class="style-scope ytd-channel-name" title="Talk Show Daily"><a class="yt-simple-endpoint style-scope yt-formatted-string" spellcheck="false" href="/@talkshowdaily" dir="auto">Talk Show Daily</a></yt-formatted-string>
+                        </div></div>
+                      </ytd-channel-name>
+                      <yt-formatted-string id="video-info" class="style-scope ytd-video-meta-block"><span dir="auto" class="style-scope yt-formatted-string">12K views</span><span dir="auto" class="style-scope yt-formatted-string"> • </span><span dir="auto" class="style-scope yt-formatted-string">8 days ago</span></yt-formatted-string>
+                    </div>
+                  </div>
+                </ytd-video-meta-block>
+              </div>
+            </div>
+          </div>
+          <div id="menu" class="style-scope ytd-playlist-video-renderer">
+            <ytd-menu-renderer class="style-scope ytd-playlist-video-renderer">
+              <yt-icon-button id="button" class="dropdown-trigger style-scope ytd-menu-renderer">
+                <button id="button" class="style-scope yt-icon-button" aria-label="Action menu"><yt-icon class="style-scope ytd-menu-renderer"></yt-icon></button>
+              </yt-icon-button>
+            </ytd-menu-renderer>
+          </div>
+        </ytd-playlist-video-renderer>
+        </div>
+      </ytd-playlist-video-list-renderer>
+    </ytd-browse>
+  </ytd-app>
+  <ytd-popup-container class="style-scope ytd-app"></ytd-popup-container>
+</body>
+</html>
