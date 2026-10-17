@@ -14,17 +14,21 @@ const FAKE_MENU_SRC = fs.readFileSync(path.join(here, 'fixtures/fake-yt-menu.js'
 window.scrollTo = () => {}; // not implemented in jsdom
 
 export function loadWLC() {
-  for (const f of ['settings', 'parse', 'filters', 'remover']) require(`../extension/lib/${f}.js`);
+  for (const f of ['settings', 'parse', 'order', 'filters', 'analytics', 'remover']) require(`../extension/lib/${f}.js`);
   require('../extension/content/panel.js');
   return globalThis.WLC;
 }
 
 /** Replace the jsdom document with the Watch Later fixture (optionally with the fake ⋮ menu). */
-export function loadFixture({ fakeMenu = false, mode = 'en', html = FIXTURE_HTML } = {}) {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  document.documentElement.replaceWith(document.importNode(doc.documentElement, true));
+export function loadFixture({ fakeMenu = false, mode = 'en', html = FIXTURE_HTML, fake = {} } = {}) {
+  // innerHTML is far faster in jsdom than DOMParser + importNode for large (2,700-item) pages.
+  const head = (html.match(/<head[^>]*>([\s\S]*?)<\/head>/i) || [])[1] || '';
+  const body = (html.match(/<body[^>]*>([\s\S]*)<\/body>/i) || [])[1] || html;
+  document.head.innerHTML = head;
+  document.body.innerHTML = body;
   if (fakeMenu) {
     window.__wlcFakeMenuMode = mode;
+    window.__wlcFake = fake;
     new Function('window', FAKE_MENU_SRC)(window);
   }
   return document;

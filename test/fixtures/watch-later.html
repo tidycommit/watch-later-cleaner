@@ -7,6 +7,22 @@
 <body>
   <ytd-app>
     <h1>Watch later</h1>
+    <ytd-playlist-header-renderer>
+      <ytd-playlist-byline-renderer><yt-formatted-string class="byline-item"><span>9</span><span> videos</span></yt-formatted-string></ytd-playlist-byline-renderer>
+    </ytd-playlist-header-renderer>
+    <yt-sort-filter-sub-menu-renderer class="style-scope ytd-playlist-video-list-renderer">
+      <yt-dropdown-menu>
+        <tp-yt-paper-menu-button><div id="trigger"><tp-yt-paper-button id="label"><div id="label-text">Sort</div></tp-yt-paper-button></div>
+          <tp-yt-paper-listbox id="menu" slot="dropdown-content" style="display:none">
+            <a class="yt-simple-endpoint"><tp-yt-paper-item class="iron-selected" aria-selected="true" role="option"><tp-yt-paper-item-body><div class="item">Date added (newest)</div></tp-yt-paper-item-body></tp-yt-paper-item></a>
+            <a class="yt-simple-endpoint"><tp-yt-paper-item aria-selected="false" role="option"><tp-yt-paper-item-body><div class="item">Date added (oldest)</div></tp-yt-paper-item-body></tp-yt-paper-item></a>
+            <a class="yt-simple-endpoint"><tp-yt-paper-item aria-selected="false" role="option"><tp-yt-paper-item-body><div class="item">Most popular</div></tp-yt-paper-item-body></tp-yt-paper-item></a>
+            <a class="yt-simple-endpoint"><tp-yt-paper-item aria-selected="false" role="option"><tp-yt-paper-item-body><div class="item">Date published (newest)</div></tp-yt-paper-item-body></tp-yt-paper-item></a>
+            <a class="yt-simple-endpoint"><tp-yt-paper-item aria-selected="false" role="option"><tp-yt-paper-item-body><div class="item">Date published (oldest)</div></tp-yt-paper-item-body></tp-yt-paper-item></a>
+          </tp-yt-paper-listbox>
+        </tp-yt-paper-menu-button>
+      </yt-dropdown-menu>
+    </yt-sort-filter-sub-menu-renderer>
     <ytd-browse page-subtype="playlist">
       <ytd-playlist-video-list-renderer class="style-scope ytd-item-section-renderer">
         <div id="contents" class="style-scope ytd-playlist-video-list-renderer">
@@ -19,6 +35,9 @@
               <ytd-thumbnail class="style-scope ytd-playlist-video-renderer">
                 <a id="thumbnail" class="yt-simple-endpoint inline-block style-scope ytd-thumbnail" href="/watch?v=aaaaaaaaaa1&amp;list=WL&amp;index=1&amp;pp=gAQBiAQB">
                   <div id="overlays" class="style-scope ytd-thumbnail">
+                    <ytd-thumbnail-overlay-time-status-renderer class="style-scope ytd-thumbnail" overlay-style="DEFAULT">
+                      <div class="thumbnail-overlay-badge-shape style-scope ytd-thumbnail-overlay-time-status-renderer"><badge-shape class="badge-shape-wiz badge-shape-wiz--thumbnail-default" role="img" aria-label="10:02"><div class="badge-shape-wiz__text">10:02</div></badge-shape></div>
+                    </ytd-thumbnail-overlay-time-status-renderer>
               <ytd-thumbnail-overlay-resume-playback-renderer class="style-scope ytd-thumbnail">
                 <div id="progress" class="style-scope ytd-thumbnail-overlay-resume-playback-renderer" style="width: 100%;"></div>
               </ytd-thumbnail-overlay-resume-playback-renderer>
@@ -63,6 +82,9 @@
               <ytd-thumbnail class="style-scope ytd-playlist-video-renderer">
                 <a id="thumbnail" class="yt-simple-endpoint inline-block style-scope ytd-thumbnail" href="/watch?v=aaaaaaaaaa2&amp;list=WL&amp;index=2&amp;pp=gAQBiAQB">
                   <div id="overlays" class="style-scope ytd-thumbnail">
+                    <ytd-thumbnail-overlay-time-status-renderer class="style-scope ytd-thumbnail" overlay-style="DEFAULT">
+                      <div class="thumbnail-overlay-badge-shape style-scope ytd-thumbnail-overlay-time-status-renderer"><badge-shape class="badge-shape-wiz badge-shape-wiz--thumbnail-default" role="img" aria-label="1:02:03"><div class="badge-shape-wiz__text">1:02:03</div></badge-shape></div>
+                    </ytd-thumbnail-overlay-time-status-renderer>
               <ytd-thumbnail-overlay-resume-playback-renderer class="style-scope ytd-thumbnail">
                 <div id="progress" class="style-scope ytd-thumbnail-overlay-resume-playback-renderer" style="width: 95%;"></div>
               </ytd-thumbnail-overlay-resume-playback-renderer>
@@ -107,6 +129,9 @@
               <ytd-thumbnail class="style-scope ytd-playlist-video-renderer">
                 <a id="thumbnail" class="yt-simple-endpoint inline-block style-scope ytd-thumbnail" href="/watch?v=aaaaaaaaaa3&amp;list=WL&amp;index=3&amp;pp=gAQBiAQB">
                   <div id="overlays" class="style-scope ytd-thumbnail">
+                    <ytd-thumbnail-overlay-time-status-renderer class="style-scope ytd-thumbnail" overlay-style="DEFAULT">
+                      <div class="thumbnail-overlay-badge-shape style-scope ytd-thumbnail-overlay-time-status-renderer"><badge-shape class="badge-shape-wiz badge-shape-wiz--thumbnail-default" role="img" aria-label="18:45"><div class="badge-shape-wiz__text">18:45</div></badge-shape></div>
+                    </ytd-thumbnail-overlay-time-status-renderer>
               <ytd-thumbnail-overlay-resume-playback-renderer class="style-scope ytd-thumbnail">
                 <div id="progress" class="style-scope ytd-thumbnail-overlay-resume-playback-renderer" style="width: 40%;"></div>
               </ytd-thumbnail-overlay-resume-playback-renderer>
@@ -233,6 +258,9 @@
               <ytd-thumbnail class="style-scope ytd-playlist-video-renderer">
                 <a id="thumbnail" class="yt-simple-endpoint inline-block style-scope ytd-thumbnail" href="/watch?v=aaaaaaaaaa6&amp;list=WL&amp;index=6&amp;pp=gAQBiAQB">
                   <div id="overlays" class="style-scope ytd-thumbnail">
+                    <ytd-thumbnail-overlay-time-status-renderer class="style-scope ytd-thumbnail" overlay-style="DEFAULT">
+                      <div class="thumbnail-overlay-badge-shape style-scope ytd-thumbnail-overlay-time-status-renderer"><badge-shape class="badge-shape-wiz badge-shape-wiz--thumbnail-default" role="img" aria-label="4:59"><div class="badge-shape-wiz__text">4:59</div></badge-shape></div>
+                    </ytd-thumbnail-overlay-time-status-renderer>
                   </div>
                 </a>
               </ytd-thumbnail>
@@ -274,6 +302,9 @@
               <ytd-thumbnail class="style-scope ytd-playlist-video-renderer">
                 <a id="thumbnail" class="yt-simple-endpoint inline-block style-scope ytd-thumbnail" href="/watch?v=aaaaaaaaaa7&amp;list=WL&amp;index=7&amp;pp=gAQBiAQB">
                   <div id="overlays" class="style-scope ytd-thumbnail">
+                    <ytd-thumbnail-overlay-time-status-renderer class="style-scope ytd-thumbnail" overlay-style="DEFAULT">
+                      <div class="thumbnail-overlay-badge-shape style-scope ytd-thumbnail-overlay-time-status-renderer"><badge-shape class="badge-shape-wiz badge-shape-wiz--thumbnail-default" role="img" aria-label="2:31:10"><div class="badge-shape-wiz__text">2:31:10</div></badge-shape></div>
+                    </ytd-thumbnail-overlay-time-status-renderer>
               <ytd-thumbnail-overlay-resume-playback-renderer class="style-scope ytd-thumbnail">
                 <div id="progress" class="style-scope ytd-thumbnail-overlay-resume-playback-renderer" style="width: 89%;"></div>
               </ytd-thumbnail-overlay-resume-playback-renderer>
@@ -318,6 +349,9 @@
               <ytd-thumbnail class="style-scope ytd-playlist-video-renderer">
                 <a id="thumbnail" class="yt-simple-endpoint inline-block style-scope ytd-thumbnail" href="/watch?v=aaaaaaaaaa8&amp;list=WL&amp;index=8&amp;pp=gAQBiAQB">
                   <div id="overlays" class="style-scope ytd-thumbnail">
+                    <ytd-thumbnail-overlay-time-status-renderer class="style-scope ytd-thumbnail" overlay-style="DEFAULT">
+                      <div class="thumbnail-overlay-badge-shape style-scope ytd-thumbnail-overlay-time-status-renderer"><badge-shape class="badge-shape-wiz badge-shape-wiz--thumbnail-default" role="img" aria-label="45:00"><div class="badge-shape-wiz__text">45:00</div></badge-shape></div>
+                    </ytd-thumbnail-overlay-time-status-renderer>
               <ytd-thumbnail-overlay-resume-playback-renderer class="style-scope ytd-thumbnail">
                 <div id="progress" class="style-scope ytd-thumbnail-overlay-resume-playback-renderer" style="width: 10%;"></div>
               </ytd-thumbnail-overlay-resume-playback-renderer>
@@ -362,6 +396,9 @@
               <ytd-thumbnail class="style-scope ytd-playlist-video-renderer">
                 <a id="thumbnail" class="yt-simple-endpoint inline-block style-scope ytd-thumbnail" href="/watch?v=aaaaaaaaaa9&amp;list=WL&amp;index=9&amp;pp=gAQBiAQB">
                   <div id="overlays" class="style-scope ytd-thumbnail">
+                    <ytd-thumbnail-overlay-time-status-renderer class="style-scope ytd-thumbnail" overlay-style="DEFAULT">
+                      <div class="thumbnail-overlay-badge-shape style-scope ytd-thumbnail-overlay-time-status-renderer"><badge-shape class="badge-shape-wiz badge-shape-wiz--thumbnail-default" role="img" aria-label="1:15:30"><div class="badge-shape-wiz__text">1:15:30</div></badge-shape></div>
+                    </ytd-thumbnail-overlay-time-status-renderer>
                   </div>
                 </a>
               </ytd-thumbnail>

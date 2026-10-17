@@ -130,43 +130,149 @@
     target.click();
   }
 
-  function closeMenus(doc) {
+  function pressEscape(doc) {
     const d = doc || document;
     const ev = { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true };
     (d.activeElement || d.body).dispatchEvent(new (d.defaultView || root).KeyboardEvent('keydown', ev));
+  }
+
+  /** Make sure no ⋮ popup is open (a closing/stale popup would otherwise be clicked for the next video). */
+  async function ensureMenuClosed(doc, timeout = 1500) {
+    if (!getOpenMenuItems(doc).length) return true;
+    pressEscape(doc);
+    return Boolean(await waitFor(() => getOpenMenuItems(doc).length === 0, { timeout }));
   }
 
   function isGone(el) {
     return !el.isConnected || el.hasAttribute('hidden') || (el.style && el.style.display === 'none');
   }
 
-  /** Remove one playlist item via its menu. Resolves { ok, method?, error? }. */
-  async function removeItem(itemEl, opts = {}) {
-    const doc = opts.doc || itemEl.ownerDocument;
-    const btn = findMenuButton(itemEl);
-    if (!btn) return { ok: false, error: 'menu button not found' };
-    if (itemEl.scrollIntoView) itemEl.scrollIntoView({ block: 'center' });
+  /**
+   * Find the playlist renderer that CURRENTLY shows a given videoId. YouTube re-uses
+   * ytd-playlist-video-renderer nodes after removals (a node can switch to showing the next video),
+   * so element references are never trusted — videos are always located by id right before acting.
+   */
+  function findItemByVideoId(doc, videoId) {
+    if (!videoId) return null;
+    const links = (doc || document).querySelectorAll(`${WLC.SELECTORS.item} a[href*="v=${videoId}"]`);
+    for (const a of links) {
+      if (WLC.getVideoId(a.getAttribute('href')) === videoId) {
+        const item = a.closest(WLC.SELECTORS.item);
+        if (item && !isGone(item)) return item;
+      }
+    }
+    return null;
+  }
+
+  function locate(video, doc) {
+    if (video.videoId) return findItemByVideoId(doc, video.videoId);
+    return video.el && !isGone(video.el) ? video.el : null; // no id (rare): fall back to the node from preview
+  }
+
+  function isPresent(video, el, doc) {
+    return video.videoId ? Boolean(findItemByVideoId(doc, video.videoId)) : !isGone(el);
+  }
+
+  const TOAST_SELECTOR = 'tp-yt-paper-toast, yt-notification-action-renderer, ytd-notification-action-renderer';
+  const TOAST_ERROR = /went wrong|error|try again|failed|couldn.t|unable|could not/i;
+
+  /**
+   * Watch YouTube's toast ("Removed from Watch later") as a second success signal.
+   * Only a toast that NEWLY appears (hidden → visible) or whose text changes / gets new nodes after this
+   * call counts — a toast still showing from the previous removal is ignored.
+   */
+  function watchToasts(doc) {
+    const d = doc || document;
+    const seen = { success: false, error: false, text: '' };
+    const before = new Map();
+    d.querySelectorAll(TOAST_SELECTOR).forEach((t) => before.set(t, { visible: !WLC.isHidden(t), text: WLC.cleanText(t.textContent) }));
+    const check = (m) => {
+      const node = m.target;
+      const el = node && (node.nodeType === 1 ? node : node.parentElement);
+      const toast = el && el.closest && el.closest(TOAST_SELECTOR);
+      if (!toast || WLC.isHidden(toast)) return;
+      const text = WLC.cleanText(toast.textContent);
+      if (!text) return;
+      const prev = before.get(toast);
+      const isNew = !prev || !prev.visible || prev.text !== text || (m.type === 'childList' && m.addedNodes.length > 0);
+      if (!isNew) return;
+      seen.text = text;
+      if (TOAST_ERROR.test(text)) seen.error = true;
+      else seen.success = true;
+    };
+    const Obs = (d.defaultView || root).MutationObserver;
+    const obs = Obs ? new Obs((muts) => muts.forEach(check)) : null;
+    if (obs) obs.observe(d.body || d.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+    return { seen, stop: () => obs && obs.disconnect() };
+  }
+
+  /**
+   * One attempt at removing one video. Returns { ok, status, step, detail }:
+   *  status 'removed' | 'gone' (not on the page any more — treated as already removed) | 'failed'
+   *  step   which stage the attempt ended in (for the debug log).
+   */
+  async function attemptRemove(video, opts = {}) {
+    const doc = opts.doc || document;
+    if (!(await ensureMenuClosed(doc))) return { ok: false, status: 'failed', step: 'previous-menu-stuck-open' };
+
+    let el = locate(video, doc);
+    if (!el) {
+      await sleep(opts.notFoundWaitMs == null ? 300 : opts.notFoundWaitMs);
+      el = locate(video, doc);
+      if (!el) return { ok: false, status: 'gone', step: 'not-found' };
+    }
+    if (el.scrollIntoView) {
+      el.scrollIntoView({ block: 'center' });
+      await sleep(opts.scrollSettleMs == null ? 150 : opts.scrollSettleMs);
+      el = locate(video, doc) || el; // re-resolve: scrolling may hydrate/recycle nodes
+    }
+    const btn = findMenuButton(el);
+    if (!btn) return { ok: false, status: 'failed', step: 'menu-button-not-found' };
     btn.click();
-    let found = null;
-    await waitFor(
-      () => {
-        const items = getOpenMenuItems(doc);
-        found = items.length ? findRemoveMenuItem(items, opts) : null;
-        return found;
-      },
-      { timeout: opts.menuTimeout || 2500 }
-    );
+
+    let items = [];
+    await waitFor(() => (items = getOpenMenuItems(doc)).length > 0, { timeout: opts.menuTimeout || 3000 });
+    if (!items.length) {
+      pressEscape(doc);
+      return { ok: false, status: 'failed', step: 'menu-did-not-open' };
+    }
+    if (video.videoId && locate(video, doc) !== el) {
+      pressEscape(doc);
+      return { ok: false, status: 'failed', step: 'item-changed-while-menu-open' };
+    }
+    const found = findRemoveMenuItem(items, opts);
     if (!found) {
-      closeMenus(doc);
-      return { ok: false, error: 'remove menu item not found' };
+      const labels = items.map((it) => WLC.cleanText(it.textContent)).join(' | ');
+      pressEscape(doc);
+      return { ok: false, status: 'failed', step: 'remove-item-not-found', detail: `menu: ${labels.slice(0, 200)}` };
     }
+
+    const toasts = watchToasts(doc);
     clickEl(found.item);
-    const gone = await waitFor(() => isGone(itemEl), { timeout: opts.removeTimeout || 4000 });
-    if (!gone) {
-      closeMenus(doc);
-      return { ok: false, method: found.method, error: 'item still present after clicking remove' };
+    try {
+      const done = await waitFor(() => !isPresent(video, el, doc) || toasts.seen.success || toasts.seen.error, {
+        timeout: opts.removeTimeout || 6000,
+      });
+      if (toasts.seen.error && isPresent(video, el, doc)) {
+        return { ok: false, status: 'failed', step: 'youtube-error-toast', detail: toasts.seen.text, method: found.method };
+      }
+      if (done && !isPresent(video, el, doc)) return { ok: true, status: 'removed', step: 'removed', method: found.method };
+      if (toasts.seen.success) {
+        // YouTube confirmed; the row can lag behind the toast. Give it a moment, but count it either way.
+        await waitFor(() => !isPresent(video, el, doc), { timeout: 3000 });
+        return { ok: true, status: 'removed', step: 'removed-toast', method: found.method, detail: toasts.seen.text };
+      }
+      return { ok: false, status: 'failed', step: 'still-present-after-click', method: found.method };
+    } finally {
+      toasts.stop();
     }
-    return { ok: true, method: found.method };
+  }
+
+  /** Legacy single-element helper (kept for callers/tests): remove the video shown by `itemEl`. */
+  async function removeItem(itemEl, opts = {}) {
+    const video = Object.assign(WLC.parseItem(itemEl), { el: itemEl });
+    const r = await attemptRemove(video, Object.assign({ doc: itemEl.ownerDocument }, opts));
+    return { ok: r.ok, method: r.method, error: r.ok ? undefined : r.step };
   }
 
   /** Scroll to the bottom repeatedly until no more items load. Calls onProgress(count). */
@@ -219,61 +325,113 @@
     return videos;
   }
 
-  /** Locate the current element for a planned video (DOM may re-render while removing). */
-  function resolveElement(video, doc) {
-    if (video.el && video.el.isConnected) {
-      const now = WLC.parseItem(video.el);
-      if (!video.videoId || now.videoId === video.videoId) return video.el;
-    }
-    if (!video.videoId) return null;
-    return WLC.getItems(doc).find((el) => WLC.parseItem(el).videoId === video.videoId) || null;
+  /** Strip DOM references: a removal plan is a list of ids (+ display info), never element positions. */
+  function toPlanEntry(v) {
+    const entry = { videoId: v.videoId, title: v.title, channel: v.channel, ageText: v.ageText };
+    if (!v.videoId) entry.el = v.el; // only for items without an id (rare)
+    return entry;
   }
 
   /**
-   * Remove a planned list of videos one by one.
-   * opts: { delayMs, shouldStop, onProgress({done,total,failed,current,result}), doc, fallbackPosition }
+   * Remove planned videos one by one, located fresh by videoId each time.
+   * - each video gets up to `maxAttempts` attempts with backoff (Escape + wait) between them
+   * - adaptive pacing: the delay doubles after a failed video (up to maxDelayMs) and decays back after successes
+   * - pauses (aborted=true) only after `maxConsecutiveFailures` failed videos in a row
+   * - returns `remaining` (failed + not attempted) so the caller can Resume without re-previewing
+   * opts: { doc, delayMs, maxDelayMs, maxAttempts, maxConsecutiveFailures, shouldStop, onProgress, onLog, ... }
    */
   async function removeVideos(videos, opts = {}) {
     const doc = opts.doc || document;
     const shouldStop = opts.shouldStop || (() => false);
-    const delayMs = opts.delayMs == null ? 400 : opts.delayMs;
-    const stats = { done: 0, failed: 0, skipped: 0, total: videos.length, stopped: false, errors: [] };
-    let consecutiveFailures = 0;
-    for (const video of videos) {
+    const baseDelay = opts.delayMs == null ? 400 : opts.delayMs;
+    const maxDelay = Math.max(baseDelay, opts.maxDelayMs == null ? 5000 : opts.maxDelayMs);
+    const maxAttempts = opts.maxAttempts || 3;
+    const maxConsecutive = opts.maxConsecutiveFailures || 8;
+    const queue = videos.map(toPlanEntry);
+    const stats = {
+      done: 0, failed: 0, skipped: 0, total: queue.length, stopped: false, aborted: false,
+      remaining: [], failures: [], steps: {}, log: [], errors: [],
+    };
+    const failedVideos = [];
+    let delay = baseDelay;
+    let consecutive = 0;
+    let i = 0;
+    const log = (entry) => {
+      const e = Object.assign({ t: new Date().toISOString(), delayMs: delay }, entry);
+      if (stats.log.length < 5000) stats.log.push(e);
+      if (opts.onLog) opts.onLog(e);
+    };
+
+    for (; i < queue.length; i++) {
       if (shouldStop()) {
         stats.stopped = true;
         break;
       }
-      const el = resolveElement(video, doc);
-      let result;
-      if (!el) {
-        stats.skipped++;
-        result = { ok: false, error: 'item no longer on page' };
-      } else {
-        result = await removeItem(el, Object.assign({}, opts, { doc }));
-        if (result.ok) {
-          stats.done++;
-          consecutiveFailures = 0;
-        } else {
-          stats.failed++;
-          consecutiveFailures++;
-          stats.errors.push(`${video.title || video.videoId}: ${result.error}`);
-        }
+      const video = queue[i];
+      let r = null;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        r = await attemptRemove(video, Object.assign({}, opts, { doc }));
+        log({ videoId: video.videoId, title: video.title, attempt, step: r.step, ok: r.ok, detail: r.detail || r.method || '' });
+        if (r.ok || r.status === 'gone' || shouldStop()) break;
+        pressEscape(doc);
+        await ensureMenuClosed(doc);
+        await sleep(Math.min(maxDelay, delay * 2 ** attempt)); // backoff before retrying the same video
       }
-      if (opts.onProgress) opts.onProgress(Object.assign({ current: video, result }, stats));
-      if (consecutiveFailures >= 3) {
+      if (r.ok) {
+        stats.done++;
+        consecutive = 0;
+        delay = Math.max(baseDelay, Math.round(delay * 0.8));
+      } else if (r.status === 'gone') {
+        stats.skipped++;
+      } else {
+        stats.failed++;
+        consecutive++;
+        failedVideos.push(video);
+        stats.steps[r.step] = (stats.steps[r.step] || 0) + 1;
+        stats.failures.push({ videoId: video.videoId, title: video.title, step: r.step, detail: r.detail || '' });
+        stats.errors.push(`${video.title || video.videoId}: ${r.step}`);
+        delay = Math.min(maxDelay, delay * 2); // YouTube may be throttling — slow down instead of giving up
+      }
+      if (opts.onProgress) opts.onProgress(Object.assign({ current: video, result: r, delayMs: delay, index: i }, stats));
+      if (consecutive >= maxConsecutive) {
         stats.aborted = true;
-        stats.errors.push('Stopped after 3 consecutive failures (YouTube layout may have changed).');
+        i++;
         break;
       }
-      await sleep(delayMs);
+      await sleep(delay);
     }
+    stats.remaining = failedVideos.concat(queue.slice(i));
     return stats;
+  }
+
+  /** Plain-text debug report for the "Copy debug log" button (no data leaves the browser unless the user pastes it). */
+  function formatDebugLog(info = {}) {
+    const s = info.stats || {};
+    const lines = [
+      'Watch Later Cleaner debug log',
+      `version: ${info.version || '?'}  time: ${new Date().toISOString()}`,
+      `userAgent: ${info.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : '?')}`,
+      `items on page: ${info.itemCount == null ? '?' : info.itemCount}`,
+      `settings: ${JSON.stringify(info.settings || {})}`,
+      `result: removed ${s.done || 0}/${s.total || 0}, failed ${s.failed || 0}, already gone ${s.skipped || 0}, ` +
+        `stopped ${Boolean(s.stopped)}, paused ${Boolean(s.aborted)}, remaining ${(s.remaining || []).length}`,
+      `failure steps: ${JSON.stringify(s.steps || {})}`,
+      '',
+      'failures:',
+      ...(s.failures || []).map((f) => `  ${f.videoId || '-'}  ${f.step}  ${f.detail || ''}  "${String(f.title || '').slice(0, 60)}"`),
+      '',
+      'attempts (last 300):',
+      ...(info.log || s.log || [])
+        .slice(-300)
+        .map((e) => `  ${e.t} ${e.ok ? 'OK  ' : 'FAIL'} #${e.attempt} ${e.videoId || '-'} ${e.step} delay=${e.delayMs} ${e.detail || ''}`),
+    ];
+    return lines.join('\n');
   }
 
   Object.assign(WLC, {
     MENU_ITEM_SELECTOR,
     MENU_CONTAINER_SELECTOR,
+    TOAST_SELECTOR,
     sleep,
     waitFor,
     isHidden,
@@ -281,12 +439,18 @@
     hasTrashIcon,
     findRemoveMenuItem,
     findMenuButton,
+    pressEscape,
+    ensureMenuClosed,
+    findItemByVideoId,
+    watchToasts,
+    attemptRemove,
     removeItem,
     loadAll,
-    resolveElement,
     isIncomplete,
     parseAllSettled,
+    toPlanEntry,
     removeVideos,
+    formatDebugLog,
   });
   if (typeof module !== 'undefined' && module.exports) module.exports = WLC;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -3,9 +3,13 @@
   "name": "Watch Later Cleaner",
   "short_name": "WL Cleaner",
   "version": "1.0.0",
-  "description": "Clean up your YouTube Watch Later playlist: remove watched, old, unavailable, filtered or all videos — with a dry-run preview.",
-  "permissions": ["storage"],
-  "host_permissions": ["https://www.youtube.com/*"],
+  "description": "Clean up your YouTube Watch Later playlist: remove watched, old, unavailable, filtered or all videos \u2014 with a dry-run preview.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.youtube.com/*"
+  ],
   "action": {
     "default_title": "Watch Later Cleaner",
     "default_popup": "popup/popup.html",
@@ -22,11 +26,15 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.youtube.com/*"],
+      "matches": [
+        "https://www.youtube.com/*"
+      ],
       "js": [
         "lib/settings.js",
         "lib/parse.js",
+        "lib/order.js",
         "lib/filters.js",
+        "lib/analytics.js",
         "lib/remover.js",
         "content/panel.js",
         "content/main.js"

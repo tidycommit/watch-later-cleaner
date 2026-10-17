@@ -8,6 +8,10 @@ with a dry-run preview before anything is removed.
 
 ![Age filter preview](docs/age-preview.png)
 
+![Analytics tab](docs/analytics.png)
+
+![Added order + match all](docs/added-order.png)
+
 ## Features
 
 - **Remove watched videos** — red progress bar ≥ a configurable threshold (default **90%**).
@@ -16,18 +20,55 @@ with a dry-run preview before anything is removed.
   See [How the age filter works](#how-the-age-filter-works). Videos whose age can't be read are never matched.
 - **Remove unavailable videos** — `[Deleted video]`, `[Private video]` and similar bracketed entries with no channel.
 - **Channel / title keyword filters** — comma-separated, case-insensitive "contains" matching.
+- **Added order** — YouTube doesn't show *when* you added a video, but Watch Later can be sorted by **Date added**.
+  With that sort active, the extension ranks videos by add order (added #1 = oldest) and offers:
+  **Oldest N added**, **Below position #X**, or **Positions #X–#Y** (positions as shown in the list; `0` = to the end).
+  - The sort is read from the playlist's sort menu ("Date added (newest|oldest)", with Korean/German/Spanish/French/… fallbacks).
+    If the list is sorted any other way, the criterion is disabled with *"Switch the playlist sort to Date added to use this"*.
+    If the label can't be read (unusual UI language), you can tell it the order manually.
+  - Uses the index numbers YouTube shows (e.g. 836), falling back to list order. "Oldest N added" always loads the full list first
+    (on a newest-first list the oldest are at the end) and matches nothing if the list didn't finish loading.
+  - Preview rows show e.g. `added #12 of 2,691 (oldest = 1)`. Removal is still by video ID, so positions shifting during removal don't matter.
 - **Remove all.**
-- Criteria are combined with **OR** (a video is removed if it matches any enabled criterion).
+- **Match any / all** (selector in the criteria header): *any* (default) removes a video matching any ticked criterion;
+  *all* requires every ticked criterion, e.g. "oldest 500 added **and** published at least 3 years ago".
 - **Dry run first:** *Preview* shows the count and the list of matched videos (with the reason each matched).
   Untick anything you want to keep. *Remove* then needs a second **Confirm** click.
 - Removal works by **simulating the UI**: each item's **⋮** menu → **Remove from Watch later**, with a configurable
-  delay between removals (default **400 ms**), a progress bar/counter and a **Stop** button.
-  It verifies each item actually disappeared and aborts after 3 consecutive failures.
+  delay between removals (default **400 ms**), a progress bar/counter and a **Stop** button. Built for long lists (thousands of items):
+  - the removal plan is a list of **video IDs**; each video is located fresh by ID right before acting and success is verified by
+    that ID disappearing (YouTube re-uses row elements after removals, so element references can't be trusted),
+    with YouTube's "Removed from Watch later" toast as a second confirmation;
+  - rows are scrolled into view before opening ⋮; a stale/closing popup is closed first;
+  - each video gets up to **3 attempts** with backoff; after a failure the delay doubles (up to 5 s) and recovers after successes;
+  - it only **pauses** after 8 failed videos in a row; **Resume** continues with the failed + remaining videos without a new preview;
+  - **Copy debug log** copies a plain-text log of every attempt (video ID, attempt, the step that failed) for troubleshooting.
 - **Auto-scroll** loads the whole playlist before matching (optional).
 - **Localization:** the menu entry is found by its English text, then by a localized "remove" verb
   (≈25 languages), then by its trash-can icon, and finally by its menu position (configurable, default 3rd; set 0 to disable).
 - **Private and minimal:** no YouTube API key, no network requests, no analytics, no remote code.
   Permissions: `storage` (to remember your settings) and host access to `https://www.youtube.com/*` only.
+
+## Analytics
+
+The panel has two tabs: **Clean** and **Analytics** (the popup's **Analytics** button opens the panel on that tab).
+Click **Analyze playlist**: it auto-scrolls to load the whole list (if that option is on) and computes, locally:
+
+- total videos, total / average duration, hours left to watch (duration × unwatched share), channel count, unavailable count;
+- watch progress: watched (≥ your threshold) / partially watched / unwatched;
+- publish-age distribution: < 1 month, 1–6 months, 6–12 months, 1–2 years, 2–3 years, 3+ years, unknown
+  (same lower-bound reading as the age filter, so "1 year ago" is in 1–2 years);
+- duration distribution: < 5 min, 5–20 min, 20–60 min, 1–2 h, 2 h+, unknown (live/upcoming have no duration badge);
+- title script mix (Latin, Hangul, Hangul + Latin, Japanese, Chinese, Cyrillic, …);
+- top 15 channels by number of videos and by total duration — **click a channel** to prefill the Clean tab's channel filter;
+- the 5 oldest and 5 longest videos;
+- when sorted by Date added: average publish age of the oldest 10% vs newest 10% added.
+
+**Export CSV / Export JSON** download `position, title, channel, videoId, url, duration, durationSeconds, progressPercent,
+publishedText, ageDays, unavailable` (JSON also includes the stats). The CSV has a UTF-8 BOM (Korean titles open correctly
+in Excel) and cells starting with `= + - @` are prefixed with `'` to prevent spreadsheet formula injection.
+Use **⤢** in the panel header for a wider, two-column layout. Everything is computed in the page; nothing is sent anywhere.
+A 2,750-item list is analyzed in about a second.
 
 ## How the age filter works
 
@@ -63,6 +104,8 @@ with a dry-run preview before anything is removed.
 4. Click **Preview (dry run)**. The extension scrolls to load all videos and lists what would be removed. Nothing is removed yet.
 5. Untick any video you want to keep, click **Remove N…**, then **Confirm: remove N**.
 6. Watch the progress counter; click **Stop** at any time (it stops after the current item).
+7. If it stops or pauses, click **Resume (N left)** to continue. If failures keep happening, click **Copy debug log**
+   and paste it into an issue — it lists which step failed for each video.
 
 Settings are shared between the popup and the on-page panel and saved in `chrome.storage.sync`.
 

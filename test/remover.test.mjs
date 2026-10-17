@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { loadWLC, loadFixture } from './helpers.mjs';
 
 const WLC = loadWLC();
-const opts = { delayMs: 5, menuTimeout: 1000, removeTimeout: 1000 };
+const opts = { delayMs: 5, maxDelayMs: 40, menuTimeout: 400, removeTimeout: 600, scrollSettleMs: 0, notFoundWaitMs: 20 };
 
 async function removeDefaultMatches(mode) {
   loadFixture({ fakeMenu: true, mode });
@@ -81,11 +81,14 @@ describe('removeVideos via simulated ⋮ menu', () => {
     expect(WLC.getItems(document)).toHaveLength(7);
   });
 
-  it('aborts after 3 consecutive failures when no menu appears', async () => {
-    loadFixture(); // no fake menu installed → clicking ⋮ does nothing
+  it('pauses only after 8 consecutive failed videos (with retries) and returns the remaining list', async () => {
+    loadFixture(); // no fake menu installed → clicking ⋮ never opens anything
     const plan = WLC.parseAll(document);
-    const stats = await WLC.removeVideos(plan, Object.assign({ doc: document }, opts, { menuTimeout: 100 }));
-    expect(stats).toMatchObject({ done: 0, failed: 3, aborted: true });
+    const stats = await WLC.removeVideos(plan, Object.assign({ doc: document }, opts, { menuTimeout: 30, maxAttempts: 2 }));
+    expect(stats).toMatchObject({ done: 0, failed: 8, aborted: true });
+    expect(stats.steps).toEqual({ 'menu-did-not-open': 8 });
+    expect(stats.log).toHaveLength(16); // 2 attempts per video
+    expect(stats.remaining.map((v) => v.videoId)).toEqual(plan.map((v) => v.videoId)); // 8 failed + 1 not attempted
     expect(WLC.getItems(document)).toHaveLength(9);
   });
 

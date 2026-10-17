@@ -6,6 +6,7 @@
   const statusEl = document.getElementById('page-status');
   const btnShow = document.getElementById('show-panel');
   const btnPreview = document.getElementById('preview');
+  const btnAnalytics = document.getElementById('analytics');
   let activeTab = null;
 
   function isWatchLater(url) {
@@ -50,6 +51,7 @@
       statusEl.textContent = 'Watch Later page detected.';
       btnShow.disabled = false;
       btnPreview.disabled = false;
+      btnAnalytics.disabled = false;
     } else {
       statusEl.textContent = 'Open your Watch Later playlist to clean it up.';
     }
@@ -73,6 +75,12 @@
     await WLC.saveSettings(readForm());
     await send('wlc:reload-settings');
     const r = await send('wlc:preview');
+    if (!r) statusEl.textContent = 'Could not reach the page — reload the tab and try again.';
+    else window.close();
+  });
+
+  btnAnalytics.addEventListener('click', async () => {
+    const r = await send('wlc:show-analytics');
     if (!r) statusEl.textContent = 'Could not reach the page — reload the tab and try again.';
     else window.close();
   });
