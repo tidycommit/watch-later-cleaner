@@ -198,6 +198,27 @@
     return WLC.getItems(doc).length;
   }
 
+  /** True if an item looks like it hasn't been hydrated yet (no title, or neither channel nor age). */
+  function isIncomplete(v) {
+    return !v.unavailable && (!v.title || (!v.channel && v.ageDays == null));
+  }
+
+  /**
+   * Parse all items, re-reading items whose metadata hasn't been rendered yet (lazy hydration)
+   * a few times before giving up. Always call after loadAll() has finished.
+   */
+  async function parseAllSettled(opts = {}) {
+    const doc = opts.doc || document;
+    const retries = opts.retries == null ? 4 : opts.retries;
+    const waitMs = opts.waitMs == null ? 400 : opts.waitMs;
+    let videos = WLC.parseAll(doc);
+    for (let i = 0; i < retries && videos.some(isIncomplete); i++) {
+      await sleep(waitMs);
+      videos = WLC.parseAll(doc);
+    }
+    return videos;
+  }
+
   /** Locate the current element for a planned video (DOM may re-render while removing). */
   function resolveElement(video, doc) {
     if (video.el && video.el.isConnected) {
@@ -263,6 +284,8 @@
     removeItem,
     loadAll,
     resolveElement,
+    isIncomplete,
+    parseAllSettled,
     removeVideos,
   });
   if (typeof module !== 'undefined' && module.exports) module.exports = WLC;

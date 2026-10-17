@@ -42,6 +42,9 @@
     .item .t { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .item .c { color: #606060; font-size: 11px; }
     .item .r { color: #cc1f1f; font-size: 11px; }
+    .item.kept { opacity: .6; padding-left: 20px; }
+    .item.kept .r { color: #606060; }
+    .age-unknown { color: #b26a00; }
     .hint { color: #606060; font-size: 11px; }
   `;
 
@@ -53,9 +56,9 @@
         <fieldset><legend>Remove videos that match any of</legend>
           <div class="row"><label><input type="checkbox" data-k="watched"> Watched ≥</label>
             <input type="number" min="1" max="100" data-k="watchedThreshold"> %</div>
-          <div class="row"><label><input type="checkbox" data-k="olderThan"> Published more than</label>
-            <input type="number" min="0" data-k="olderThanValue">
-            <select data-k="olderThanUnit"><option>days</option><option>weeks</option><option>months</option><option>years</option></select> ago</div>
+          <div class="row"><label title="Uses the publish date YouTube shows (e.g. &quot;1 year ago&quot;). Inclusive: 1 year matches &quot;1 year ago&quot;. Videos whose age can't be read are never matched."><input type="checkbox" data-k="olderThan"> Published at least</label>
+            <input type="number" min="1" step="1" data-k="olderThanValue">
+            <select data-k="olderThanUnit"><option value="days">days</option><option value="weeks">weeks</option><option value="months">months</option><option value="years">years</option></select> ago</div>
           <div class="row"><label><input type="checkbox" data-k="unavailable"> Unavailable / deleted / private</label></div>
           <div class="row"><label><input type="checkbox" data-k="channelFilter"> Channel contains</label>
             <input type="text" data-k="channelKeywords" placeholder="comma-separated"></div>
@@ -65,6 +68,7 @@
         </fieldset>
         <fieldset><legend>Options</legend>
           <div class="row"><label><input type="checkbox" data-k="loadAllFirst"> Auto-scroll to load all videos first</label></div>
+          <div class="row"><label><input type="checkbox" data-k="showKept"> Preview: also list kept videos (with parsed age)</label></div>
           <div class="row">Delay between removals <input type="number" min="100" step="50" data-k="delayMs"> ms</div>
         </fieldset>
         <div class="actions">
@@ -138,17 +142,20 @@
       if (b) btnRemove.disabled = true;
     }
 
-    function renderList(plan) {
-      listEl.innerHTML = plan
-        .map(
-          (m, i) => `<label class="item"><input type="checkbox" checked data-i="${i}">
-            <span class="meta"><div class="t" title="${escapeHtml(m.video.title)}">${escapeHtml(m.video.title || '(untitled)')}</div>
-            <div class="c">${escapeHtml(m.video.channel || '—')}${m.video.ageText ? ' · ' + escapeHtml(m.video.ageText) : ''}${
-              m.video.progress ? ' · ' + Math.round(m.video.progress) + '% watched' : ''
-            }</div>
-            <div class="r">${escapeHtml(m.reasons.join(', '))}</div></span></label>`
-        )
-        .join('');
+    function metaLine(v) {
+      const age = v.ageDays == null ? '<span class="age-unknown">age unknown</span>' : escapeHtml(WLC.describeAge(v));
+      const progress = v.progress ? ` · ${Math.round(v.progress)}% watched` : '';
+      return `${escapeHtml(v.channel || '—')} · ${age}${progress}`;
+    }
+
+    function renderList(plan, kept) {
+      const row = (v, reason, extra, cls) => `<label class="item${cls}">${extra}
+            <span class="meta"><div class="t" title="${escapeHtml(v.title)}">${escapeHtml(v.title || '(untitled)')}</div>
+            <div class="c">${metaLine(v)}</div>
+            <div class="r">${escapeHtml(reason)}</div></span></label>`;
+      listEl.innerHTML =
+        plan.map((m, i) => row(m.video, m.reasons.join(', '), `<input type="checkbox" checked data-i="${i}">`, '')).join('') +
+        (kept || []).map((v) => row(v, WLC.keepReason(v, state.settings), '', ' kept')).join('');
     }
     function selectedPlan() {
       if (!state.plan) return [];
@@ -178,15 +185,21 @@
           setStatus('Loading all videos (auto-scrolling)…');
           await WLC.loadAll({ doc, shouldStop: () => state.stop, onProgress: (n) => setStatus(`Loading all videos… ${n} loaded`) });
         }
-        const videos = WLC.parseAll(doc);
+        setStatus('Reading video details…');
+        const videos = await WLC.parseAllSettled({ doc });
         const plan = WLC.selectVideos(videos, s);
+        const matched = new Set(plan.map((m) => m.video));
+        const kept = s.showKept ? videos.filter((v) => !matched.has(v)) : [];
         state.plan = plan;
-        renderList(plan);
+        state.videos = videos;
+        renderList(plan, kept);
         setBar(0);
+        const unknown = videos.filter((v) => !v.unavailable && v.ageDays == null).length;
+        const ageNote = s.olderThan && unknown ? ` ${unknown} video(s) have an unknown age and are never matched by the age filter.` : '';
         setStatus(
-          plan.length
+          (plan.length
             ? `Dry run: ${plan.length} of ${videos.length} videos match. Untick any to keep, then click Remove and confirm.`
-            : `Dry run: no matches among ${videos.length} videos.`
+            : `Dry run: no matches among ${videos.length} videos.`) + ageNote
         );
         return plan;
       } finally {
@@ -279,6 +292,22 @@
         writeForm(state.settings);
       },
     };
+    // Pick up changes made in the popup (or another tab) while the panel is idle.
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+        chrome.storage.onChanged.addListener((changes, area) => {
+          if (area !== 'sync' || !changes[WLC.STORAGE_KEY] || state.busy) return;
+          const next = WLC.normalizeSettings(changes[WLC.STORAGE_KEY].newValue);
+          if (JSON.stringify(next) !== JSON.stringify(state.settings)) {
+            state.settings = next;
+            writeForm(state.settings);
+            invalidatePlan();
+          }
+        });
+      }
+    } catch (_) {
+      /* not in an extension context */
+    }
     host.__wlc = api;
     writeForm(state.settings);
     api.reloadSettings();

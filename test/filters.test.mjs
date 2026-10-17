@@ -41,8 +41,15 @@ describe('selectVideos on fixture', () => {
     expect(titles(S({ watched: true, watchedThreshold: 100 }))).toEqual(['Learn Rust in 10 minutes']);
   });
 
-  it('older than N (published)', () => {
+  it('published at least N ago (inclusive: "1 year ago" matches 1 year)', () => {
     expect(titles(S({ olderThan: true, olderThanValue: 1, olderThanUnit: 'years' }))).toEqual([
+      'Learn Rust in 10 minutes',
+      'Cooking pasta like a pro',
+      'Full Course: JavaScript for beginners', // "1 year ago" — was wrongly excluded before (strict >)
+      'Live concert highlights',
+    ]);
+    expect(titles(S({ olderThan: true, olderThanValue: 12, olderThanUnit: 'months' }))).toHaveLength(4);
+    expect(titles(S({ olderThan: true, olderThanValue: 2, olderThanUnit: 'years' }))).toEqual([
       'Learn Rust in 10 minutes',
       'Cooking pasta like a pro',
       'Live concert highlights',
@@ -76,6 +83,6 @@ describe('selectVideos on fixture', () => {
 
   it('reports all matching reasons', () => {
     const r = WLC.selectVideos(videos, S({ watched: true, olderThan: true, olderThanValue: 1, channelFilter: true, channelKeywords: 'tech' }));
-    expect(r[0].reasons).toEqual(['watched 100%', 'older (2 years ago)', 'channel "tech"']);
+    expect(r[0].reasons).toEqual(['watched 100%', 'published "2 years ago" → ~731 days ≥ 1 year (~365 days)', 'channel "tech"']);
   });
 });

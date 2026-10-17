@@ -19,7 +19,7 @@ describe('helpers', () => {
     expect(WLC.parseAgeDays('Streamed 6 years ago')).toBeCloseTo(6 * 365.25);
     expect(WLC.parseAgeDays('5 hours ago')).toBeCloseTo(5 / 24);
     expect(WLC.parseAgeDays('1.2M views')).toBeNull();
-    expect(WLC.parseAgeDays('vor 3 Jahren')).toBeNull(); // non-English: not detected
+    expect(WLC.parseAgeDays('3 Monate')).toBeNull();
   });
 
   it('getVideoId', () => {

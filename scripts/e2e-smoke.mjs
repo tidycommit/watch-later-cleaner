@@ -16,6 +16,9 @@ const fixture = fs
   .readFileSync(path.join(root, 'test/fixtures/watch-later.html'), 'utf8')
   .replace('</body>', `<script>${fs.readFileSync(path.join(root, 'test/fixtures/fake-yt-menu.js'), 'utf8')}</script></body>`);
 
+const ageFixture = fs.readFileSync(path.join(root, 'test/fixtures/age-variants.html'), 'utf8');
+let served = fixture;
+
 const EXPECTED = ['Learn Rust in 10 minutes', 'Lo-fi beats to study to', '[Deleted video]', '[Private video]'];
 
 const browser = await puppeteer.launch({
@@ -35,7 +38,7 @@ try {
   const page = await browser.newPage();
   await page.setRequestInterception(true);
   page.on('request', (req) => {
-    if (req.url() === WL_URL) req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: fixture });
+    if (req.url() === WL_URL) req.respond({ status: 200, contentType: 'text/html; charset=utf-8', body: served });
     else if (/^https?:/.test(req.url())) req.abort(); // keep the test fully offline
     else req.continue();
   });
@@ -76,6 +79,48 @@ try {
   console.log('  status:', await sr(() => document.getElementById('wlc-panel-host').shadowRoot.querySelector('.status').textContent));
   check(after.length === 5 && !after.some((t) => EXPECTED.includes(t)), `confirmed removal on fake fixture leaves 5 items`);
   await page.screenshot({ path: shot.replace(/\.png$/, '_after_removal.png') });
+
+  // Age filter against the markup-variants fixture: "Published at least 12 months ago", list kept videos too.
+  served = ageFixture;
+  await page.goto(WL_URL, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.getElementById('wlc-panel-host')?.shadowRoot?.querySelector('.fab'), { timeout: 15000 });
+  await sr(() => {
+    const s = document.getElementById('wlc-panel-host').shadowRoot;
+    s.querySelector('.fab').click();
+    const set = (k, v) => {
+      const el = s.querySelector(`[data-k="${k}"]`);
+      if (el.type === 'checkbox') el.checked = v;
+      else el.value = v;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('watched', false);
+    set('unavailable', false);
+    set('loadAllFirst', false);
+    set('olderThan', true);
+    set('olderThanValue', '12');
+    set('olderThanUnit', 'months');
+    set('showKept', true);
+    s.querySelector('.btn-preview').click();
+  });
+  await page.waitForFunction(() => /Dry run/.test(document.getElementById('wlc-panel-host').shadowRoot.querySelector('.status').textContent), {
+    timeout: 20000,
+  });
+  const ageRows = await sr(() =>
+    [...document.getElementById('wlc-panel-host').shadowRoot.querySelectorAll('.list .item')].map((r) => ({
+      kept: r.classList.contains('kept'),
+      title: r.querySelector('.t').textContent,
+      meta: r.querySelector('.c').textContent,
+    }))
+  );
+  for (const r of ageRows) console.log(`  ${r.kept ? 'keep  ' : 'remove'} ${r.title} — ${r.meta}`);
+  const matchedTitles = ageRows.filter((r) => !r.kept).map((r) => r.title);
+  check(
+    JSON.stringify(matchedTitles) ===
+      JSON.stringify(['Classic one year', 'Metadata line stream', 'What changed 2 years ago', 'Nbsp spaces', 'Abbreviated', 'A year']),
+    'age filter (>= 12 months) matches all markup variants incl. "1 year ago"'
+  );
+  check(ageRows.some((r) => r.kept && r.title === 'No age shown' && /age unknown/.test(r.meta)), 'unknown age is kept and labelled "age unknown"');
+  await page.screenshot({ path: shot.replace(/\.png$/, '_age_preview.png') });
 } finally {
   await browser.close();
 }

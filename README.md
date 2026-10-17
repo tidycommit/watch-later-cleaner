@@ -6,11 +6,14 @@ with a dry-run preview before anything is removed.
 
 ![Panel screenshot](docs/panel.png)
 
+![Age filter preview](docs/age-preview.png)
+
 ## Features
 
 - **Remove watched videos** — red progress bar ≥ a configurable threshold (default **90%**).
-- **Remove old videos** — published more than *N* days / weeks / months / years ago (parsed from the
-  "3 years ago" text YouTube shows; English UI only — items whose age can't be read are never matched).
+- **Remove old videos** — published **at least** *N* days / weeks / months / years ago, read from the relative date
+  YouTube shows ("3 years ago", "Streamed 2 years ago", "Premiered 8 months ago", "a year ago", "3y ago", …).
+  See [How the age filter works](#how-the-age-filter-works). Videos whose age can't be read are never matched.
 - **Remove unavailable videos** — `[Deleted video]`, `[Private video]` and similar bracketed entries with no channel.
 - **Channel / title keyword filters** — comma-separated, case-insensitive "contains" matching.
 - **Remove all.**
@@ -25,6 +28,23 @@ with a dry-run preview before anything is removed.
   (≈25 languages), then by its trash-can icon, and finally by its menu position (configurable, default 3rd; set 0 to disable).
 - **Private and minimal:** no YouTube API key, no network requests, no analytics, no remote code.
   Permissions: `storage` (to remember your settings) and host access to `https://www.youtube.com/*` only.
+
+## How the age filter works
+
+- **Where the age comes from:** each item's `#video-info` spans (classic layout, e.g. `1.2M views` `•` `3 years ago`),
+  then `#metadata-line`, the newer `yt-content-metadata-view-model` layout, and finally the title link's `aria-label`
+  (with the title stripped, so a title like "What changed 2 years ago" isn't mistaken for the age).
+- **Formats:** "N unit(s) ago" with optional "Streamed"/"Premiered"/"Updated", "a/an/one", abbreviations
+  (`3y`, `3 yr`, `2mo`, `5 min`), "yesterday", non-breaking/thin spaces, plus German, Spanish, French, Portuguese
+  and Italian relative dates. Other UI languages show "age unknown".
+- **Units:** week = 7 days, year = 365.25 days, month = year / 12 (≈ 30.44 days), so "12 months" and "1 year" are equal.
+- **Inclusive comparison:** YouTube rounds down ("1 year ago" means 12–23 months), so the shown age is a lower bound.
+  A video matches when that lower bound is **≥** your threshold: "at least 1 year" (or "12 months") matches "1 year ago"
+  but not "11 months ago". Everything matched is therefore truly at least that old.
+- **See what was read:** every preview row shows the parsed age, e.g. `"3 years ago" → ~1096 days`, or **age unknown**.
+  Tick **Preview: also list kept videos** to see non-matching videos too, with the reason they were kept
+  (e.g. `kept: published "11 months ago" → ~335 days < 1 year (~365 days)`).
+- It uses the **publish** date; YouTube doesn't show when you *added* a video to Watch Later.
 
 ## Install (unpacked)
 
@@ -86,8 +106,8 @@ requests are blocked), so it never talks to YouTube.
 - Relies on YouTube's page structure (`ytd-playlist-video-renderer`, the resume-playback progress bar, the ⋮ popup menu).
   YouTube changes its DOM from time to time; if that happens, selectors in `extension/lib/parse.js` and
   `extension/lib/remover.js` may need updating. The removal loop verifies each removal and stops after repeated failures.
-- "Older than" uses the video's **publish** date as shown on the page; YouTube doesn't show when you *added* a video.
-  Age parsing only understands English relative dates.
+- The age filter uses the video's **publish** date as shown on the page; YouTube doesn't show when you *added* a video.
+  Relative dates are understood in English, German, Spanish, French, Portuguese and Italian only.
 - Watch progress is only known for videos YouTube shows a red progress bar for.
 - Removing hundreds of videos takes a while (delay × count) — that's intentional to avoid tripping YouTube.
 

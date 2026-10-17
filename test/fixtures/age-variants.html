@@ -1,0 +1,102 @@
+<!doctype html>
+<!-- Hand-written markup variants of Watch Later items seen across YouTube layouts (fake data), for age-parsing tests. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Watch later - YouTube</title></head>
+<body>
+<ytd-playlist-video-list-renderer><div id="contents">
+
+  <!-- A: classic layout, separator span without spaces -->
+  <ytd-playlist-video-renderer data-case="classic-bullet">
+    <a id="thumbnail" href="/watch?v=bbbbbbbbbbA&amp;list=WL&amp;index=1"></a>
+    <h3><a id="video-title" href="/watch?v=bbbbbbbbbbA&amp;list=WL&amp;index=1" title="Classic one year">Classic one year</a></h3>
+    <ytd-video-meta-block class="playlist"><div id="metadata"><div id="byline-container">
+      <ytd-channel-name id="channel-name"><yt-formatted-string id="text"><a href="/@a">Chan A</a></yt-formatted-string></ytd-channel-name>
+      <yt-formatted-string id="video-info"><span dir="auto">1.2M views</span><span dir="auto">•</span><span dir="auto">1 year ago</span></yt-formatted-string>
+    </div><div id="metadata-line"></div></div></ytd-video-meta-block>
+    <div id="menu"><ytd-menu-renderer><yt-icon-button id="button"><button id="button" aria-label="Action menu"></button></yt-icon-button></ytd-menu-renderer></div>
+  </ytd-playlist-video-renderer>
+
+  <!-- B: #video-info present but empty; data in #metadata-line (meta-block variant) -->
+  <ytd-playlist-video-renderer data-case="metadata-line">
+    <h3><a id="video-title" href="/watch?v=bbbbbbbbbbB&amp;list=WL&amp;index=2" title="Metadata line stream">Metadata line stream</a></h3>
+    <ytd-video-meta-block><div id="metadata">
+      <div id="byline-container"><ytd-channel-name id="channel-name"><yt-formatted-string id="text"><a href="/@b">Chan B</a></yt-formatted-string></ytd-channel-name>
+        <yt-formatted-string id="video-info" is-empty=""></yt-formatted-string></div>
+      <div id="metadata-line"><span class="inline-metadata-item">12K views</span><span class="inline-metadata-item">Streamed 2 years ago</span></div>
+    </div></ytd-video-meta-block>
+    <div id="menu"><ytd-menu-renderer><button aria-label="Action menu"></button></ytd-menu-renderer></div>
+  </ytd-playlist-video-renderer>
+
+  <!-- C: newer view-model metadata (single text span containing the bullet) -->
+  <ytd-playlist-video-renderer data-case="view-model">
+    <h3><a id="video-title" href="/watch?v=bbbbbbbbbbC&amp;list=WL&amp;index=3" title="View model premiere">View model premiere</a></h3>
+    <yt-content-metadata-view-model class="yt-content-metadata-view-model">
+      <div class="yt-content-metadata-view-model__metadata-row"><span class="yt-core-attributed-string"><a href="/@c">Chan C</a></span></div>
+      <div class="yt-content-metadata-view-model__metadata-row"><span class="yt-core-attributed-string">3.4M views • Premiered 8 months ago</span></div>
+    </yt-content-metadata-view-model>
+    <div id="menu"><ytd-menu-renderer><button aria-label="Action menu"></button></ytd-menu-renderer></div>
+  </ytd-playlist-video-renderer>
+
+  <!-- D: no visible age; only aria-label on the title link, and the TITLE itself contains "2 years ago" -->
+  <ytd-playlist-video-renderer data-case="aria-label">
+    <h3><a id="video-title" href="/watch?v=bbbbbbbbbbD&amp;list=WL&amp;index=4" title="What changed 2 years ago"
+      aria-label="What changed 2 years ago by Chan D 5,000 views 4 years ago 12 minutes, 5 seconds">What changed 2 years ago</a></h3>
+    <ytd-video-meta-block><div id="metadata"><div id="byline-container">
+      <ytd-channel-name id="channel-name"><yt-formatted-string id="text"><a href="/@d">Chan D</a></yt-formatted-string></ytd-channel-name>
+      <yt-formatted-string id="video-info"></yt-formatted-string>
+    </div></div></ytd-video-meta-block>
+    <div id="menu"><ytd-menu-renderer><button aria-label="Action menu"></button></ytd-menu-renderer></div>
+  </ytd-playlist-video-renderer>
+
+  <!-- E: non-breaking and thin spaces -->
+  <ytd-playlist-video-renderer data-case="nbsp">
+    <h3><a id="video-title" href="/watch?v=bbbbbbbbbbE&amp;list=WL&amp;index=5" title="Nbsp spaces">Nbsp spaces</a></h3>
+    <ytd-channel-name id="channel-name"><a href="/@e">Chan E</a></ytd-channel-name>
+    <yt-formatted-string id="video-info"><span>7&nbsp;views</span><span>&nbsp;•&nbsp;</span><span>3&nbsp;years&#8201;ago</span></yt-formatted-string>
+  </ytd-playlist-video-renderer>
+
+  <!-- F: abbreviated -->
+  <ytd-playlist-video-renderer data-case="abbrev">
+    <h3><a id="video-title" href="/watch?v=bbbbbbbbbbF&amp;list=WL&amp;index=6" title="Abbreviated">Abbreviated</a></h3>
+    <ytd-channel-name id="channel-name"><a href="/@f">Chan F</a></ytd-channel-name>
+    <yt-formatted-string id="video-info"><span>2K views</span><span> • </span><span>3y ago</span></yt-formatted-string>
+  </ytd-playlist-video-renderer>
+
+  <!-- G: "a year ago" -->
+  <ytd-playlist-video-renderer data-case="a-year">
+    <h3><a id="video-title" href="/watch?v=bbbbbbbbbbG&amp;list=WL&amp;index=7" title="A year">A year</a></h3>
+    <ytd-channel-name id="channel-name"><a href="/@g">Chan G</a></ytd-channel-name>
+    <yt-formatted-string id="video-info"><span>99 views</span><span> • </span><span>a year ago</span></yt-formatted-string>
+  </ytd-playlist-video-renderer>
+
+  <!-- H: "Updated" -->
+  <ytd-playlist-video-renderer data-case="updated">
+    <h3><a id="video-title" href="/watch?v=bbbbbbbbbbH&amp;list=WL&amp;index=8" title="Updated recently">Updated recently</a></h3>
+    <ytd-channel-name id="channel-name"><a href="/@h">Chan H</a></ytd-channel-name>
+    <yt-formatted-string id="video-info"><span>Updated 3 days ago</span></yt-formatted-string>
+  </ytd-playlist-video-renderer>
+
+  <!-- I: 11 months (just under a year) -->
+  <ytd-playlist-video-renderer data-case="eleven-months">
+    <h3><a id="video-title" href="/watch?v=bbbbbbbbbbI&amp;list=WL&amp;index=9" title="Eleven months">Eleven months</a></h3>
+    <ytd-channel-name id="channel-name"><a href="/@i">Chan I</a></ytd-channel-name>
+    <yt-formatted-string id="video-info"><span>5 views</span><span>•</span><span>11 months ago</span></yt-formatted-string>
+  </ytd-playlist-video-renderer>
+
+  <!-- J: no age anywhere (unknown) -->
+  <ytd-playlist-video-renderer data-case="unknown">
+    <h3><a id="video-title" href="/watch?v=bbbbbbbbbbJ&amp;list=WL&amp;index=10" title="No age shown">No age shown</a></h3>
+    <ytd-channel-name id="channel-name"><a href="/@j">Chan J</a></ytd-channel-name>
+    <yt-formatted-string id="video-info"><span>1.2M views</span></yt-formatted-string>
+  </ytd-playlist-video-renderer>
+
+  <!-- K: not hydrated yet (filled in by the test after a delay) -->
+  <ytd-playlist-video-renderer data-case="lazy">
+    <h3><a id="video-title" href="/watch?v=bbbbbbbbbbK&amp;list=WL&amp;index=11"></a></h3>
+    <ytd-channel-name id="channel-name"></ytd-channel-name>
+    <yt-formatted-string id="video-info"></yt-formatted-string>
+  </ytd-playlist-video-renderer>
+
+</div></ytd-playlist-video-list-renderer>
+</body>
+</html>

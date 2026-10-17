@@ -7,6 +7,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
 export const FIXTURE_HTML = fs.readFileSync(path.join(here, 'fixtures/watch-later.html'), 'utf8');
+export const AGE_VARIANTS_HTML = fs.readFileSync(path.join(here, 'fixtures/age-variants.html'), 'utf8');
 const FAKE_MENU_SRC = fs.readFileSync(path.join(here, 'fixtures/fake-yt-menu.js'), 'utf8');
 
 /** Load the extension libraries (they attach to globalThis.WLC, like in the content script). */
@@ -19,8 +20,8 @@ export function loadWLC() {
 }
 
 /** Replace the jsdom document with the Watch Later fixture (optionally with the fake ⋮ menu). */
-export function loadFixture({ fakeMenu = false, mode = 'en' } = {}) {
-  const doc = new DOMParser().parseFromString(FIXTURE_HTML, 'text/html');
+export function loadFixture({ fakeMenu = false, mode = 'en', html = FIXTURE_HTML } = {}) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
   document.documentElement.replaceWith(document.importNode(doc.documentElement, true));
   if (fakeMenu) {
     window.__wlcFakeMenuMode = mode;
