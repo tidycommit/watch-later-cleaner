@@ -7,6 +7,22 @@
 <body>
   <ytd-app>
     <h1>Watch later</h1>
+    <ytd-playlist-header-renderer>
+      <ytd-playlist-byline-renderer><yt-formatted-string class="byline-item"><span>9</span><span> videos</span></yt-formatted-string></ytd-playlist-byline-renderer>
+    </ytd-playlist-header-renderer>
+    <yt-sort-filter-sub-menu-renderer class="style-scope ytd-playlist-video-list-renderer">
+      <yt-dropdown-menu>
+        <tp-yt-paper-menu-button><div id="trigger"><tp-yt-paper-button id="label"><div id="label-text">Sort</div></tp-yt-paper-button></div>
+          <tp-yt-paper-listbox id="menu" slot="dropdown-content" style="display:none">
+            <a class="yt-simple-endpoint"><tp-yt-paper-item class="iron-selected" aria-selected="true" role="option"><tp-yt-paper-item-body><div class="item">Date added (newest)</div></tp-yt-paper-item-body></tp-yt-paper-item></a>
+            <a class="yt-simple-endpoint"><tp-yt-paper-item aria-selected="false" role="option"><tp-yt-paper-item-body><div class="item">Date added (oldest)</div></tp-yt-paper-item-body></tp-yt-paper-item></a>
+            <a class="yt-simple-endpoint"><tp-yt-paper-item aria-selected="false" role="option"><tp-yt-paper-item-body><div class="item">Most popular</div></tp-yt-paper-item-body></tp-yt-paper-item></a>
+            <a class="yt-simple-endpoint"><tp-yt-paper-item aria-selected="false" role="option"><tp-yt-paper-item-body><div class="item">Date published (newest)</div></tp-yt-paper-item-body></tp-yt-paper-item></a>
+            <a class="yt-simple-endpoint"><tp-yt-paper-item aria-selected="false" role="option"><tp-yt-paper-item-body><div class="item">Date published (oldest)</div></tp-yt-paper-item-body></tp-yt-paper-item></a>
+          </tp-yt-paper-listbox>
+        </tp-yt-paper-menu-button>
+      </yt-dropdown-menu>
+    </yt-sort-filter-sub-menu-renderer>
     <ytd-browse page-subtype="playlist">
       <ytd-playlist-video-list-renderer class="style-scope ytd-item-section-renderer">
         <div id="contents" class="style-scope ytd-playlist-video-list-renderer">

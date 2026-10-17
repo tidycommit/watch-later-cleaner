@@ -32,6 +32,7 @@
       "js": [
         "lib/settings.js",
         "lib/parse.js",
+        "lib/order.js",
         "lib/filters.js",
         "lib/analytics.js",
         "lib/remover.js",

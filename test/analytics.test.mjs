@@ -158,10 +158,11 @@ describe('panel Analytics tab', () => {
     expect(cards[1]).toBe('6.1 h total duration');
     expect($('.a-status').textContent).toContain('Analyzed 9 videos');
     const secs = [...panel.shadow.querySelectorAll('.sec h4')].map((h) => h.textContent);
-    expect(secs).toEqual(['Watch progress', 'Published (age)', 'Duration', 'Title script', 'Top channels by videos', 'Top channels by duration', 'Oldest', 'Longest']);
+    expect(secs).toEqual(['Watch progress', 'Published (age)', 'Duration', 'Title script', 'Top channels by videos', 'Top channels by duration', 'Added order (publish age)', 'Oldest', 'Longest']);
     expect($('.btn-csv').disabled).toBe(false);
     globalThis.URL.createObjectURL = () => 'blob:x';
     globalThis.URL.revokeObjectURL = () => {};
+    HTMLAnchorElement.prototype.click = () => {}; // jsdom can't navigate to blob: downloads
     expect(panel.exportCsv().split('\r\n')).toHaveLength(11);
     expect(JSON.parse(panel.exportJson()).videos).toHaveLength(9);
     panel.setExpanded(true);

@@ -75,6 +75,11 @@
     .item.kept { opacity: .6; padding-left: 20px; }
     .item.kept .r { color: #606060; }
     .age-unknown { color: #b26a00; }
+    .am[hidden] { display: none; }
+    .sort-row { font-size: 11px; color: #606060; }
+    .sort-row.bad .sort-note { color: #b26a00; }
+    legend select { font-size: 12px; padding: 0 2px; }
+    .added { color: #1a73e8; }
     .hint { color: #606060; font-size: 11px; }
   `;
 
@@ -88,7 +93,7 @@
         <button role="tab" data-tab="analytics" aria-selected="false">Analytics</button>
       </div>
       <div class="body view view-clean" data-view="clean">
-        <fieldset><legend>Remove videos that match any of</legend>
+        <fieldset><legend>Remove videos that match <select data-k="matchMode" title="any = a video matching one ticked criterion is removed; all = it must match every ticked criterion"><option value="any">any</option><option value="all">all</option></select> of</legend>
           <div class="row"><label><input type="checkbox" data-k="watched"> Watched ≥</label>
             <input type="number" min="1" max="100" data-k="watchedThreshold"> %</div>
           <div class="row"><label title="Uses the publish date YouTube shows (e.g. &quot;1 year ago&quot;). Inclusive: 1 year matches &quot;1 year ago&quot;. Videos whose age can't be read are never matched."><input type="checkbox" data-k="olderThan"> Published at least</label>
@@ -99,6 +104,13 @@
             <input type="text" data-k="channelKeywords" placeholder="comma-separated"></div>
           <div class="row"><label><input type="checkbox" data-k="titleFilter"> Title contains</label>
             <input type="text" data-k="titleKeywords" placeholder="comma-separated"></div>
+          <div class="row added-row"><label title="Uses the playlist's Date added sort (YouTube doesn't show the added date itself)."><input type="checkbox" data-k="addedOrder"> Added order</label>
+            <select data-k="addedMode"><option value="oldestN">Oldest N added</option><option value="below">Below position #</option><option value="range">Positions #…#</option></select>
+            <span class="am am-n"><input type="number" min="1" step="1" data-k="addedN" title="N"></span>
+            <span class="am am-from"><input type="number" min="1" step="1" data-k="addedFrom" title="Position"></span>
+            <span class="am am-to">to <input type="number" min="0" step="1" data-k="addedTo" title="Last position (0 = to the end)"></span></div>
+          <div class="row sort-row hint"><span class="sort-note"></span>
+            <select data-k="addedSortOverride" title="Only if the sort can't be detected (e.g. other UI languages)"><option value="auto">detect sort</option><option value="newest">list is newest-added first</option><option value="oldest">list is oldest-added first</option></select></div>
           <div class="row danger"><label><input type="checkbox" data-k="removeAll"> Remove ALL videos</label></div>
         </fieldset>
         <fieldset><legend>Options</legend>
@@ -206,12 +218,37 @@
       shadow.querySelectorAll('[data-k]').forEach((i) => (i.disabled = b));
       if (b) btnRemove.disabled = true;
       updateSecondary();
+      if (state.sort) applyAddedState();
+    }
+
+    function applyAddedState() {
+      const s = readForm();
+      const mode = s.addedMode;
+      $('.am-n').hidden = mode !== 'oldestN';
+      $('.am-from').hidden = mode === 'oldestN';
+      $('.am-to').hidden = mode !== 'range';
+      const sort = state.sort || { available: false, reason: '' };
+      const lock = state.busy || !sort.available;
+      ['addedOrder', 'addedMode', 'addedN', 'addedFrom', 'addedTo'].forEach((k) => ($(`[data-k="${k}"]`).disabled = lock));
+      $('.sort-row').classList.toggle('bad', !sort.available);
+      $('.sort-note').textContent = sort.available
+        ? `Sort: ${sort.label} — added #1 = oldest.${s.addedMode === 'oldestN' && sort.direction === 'newest' ? ' Loads the full list first.' : ''}`
+        : sort.reason;
+    }
+
+    function refreshSort() {
+      const detected = WLC.detectSort(doc);
+      state.sort = WLC.resolveAddedSort(detected, readForm().addedSortOverride);
+      state.sort.detected = detected;
+      applyAddedState();
+      return state.sort;
     }
 
     function metaLine(v) {
       const age = v.ageDays == null ? '<span class="age-unknown">age unknown</span>' : escapeHtml(WLC.describeAge(v));
       const progress = v.progress ? ` · ${Math.round(v.progress)}% watched` : '';
-      return `${escapeHtml(v.channel || '—')} · ${age}${progress}`;
+      const added = v.addedRank != null ? ` · <span class="added">${escapeHtml(WLC.describeAdded(v))}</span>` : '';
+      return `${escapeHtml(v.channel || '—')} · ${age}${progress}${added}`;
     }
 
     function renderList(plan, kept) {
@@ -248,13 +285,19 @@
       state.pending = []; // a new preview replaces any unfinished run
       setBusy(true);
       try {
-        if (s.loadAllFirst) {
+        const sort = refreshSort();
+        if (s.loadAllFirst || s.addedOrder) {
+          // The added-order criterion always needs the full list (the oldest-added are at the end when newest-first).
           setStatus('Loading all videos (auto-scrolling)…');
           await WLC.loadAll({ doc, shouldStop: () => state.stop, onProgress: (n) => setStatus(`Loading all videos… ${n} loaded`) });
         }
+        const incomplete = Boolean(doc.querySelector(WLC.SELECTORS.continuation));
+        const headerCount = WLC.getPlaylistCount(doc);
         setStatus('Reading video details…');
         const videos = await WLC.parseAllSettled({ doc });
-        const plan = WLC.selectVideos(videos, s);
+        WLC.annotateAddedOrder(videos, sort.available ? sort.direction : null);
+        const ctx = { addedOrder: { available: sort.available, direction: sort.direction, incomplete } };
+        const plan = WLC.selectVideos(videos, s, ctx);
         const matched = new Set(plan.map((m) => m.video));
         const kept = s.showKept ? videos.filter((v) => !matched.has(v)) : [];
         state.plan = plan;
@@ -263,10 +306,20 @@
         setBar(0);
         const unknown = videos.filter((v) => !v.unavailable && v.ageDays == null).length;
         const ageNote = s.olderThan && unknown ? ` ${unknown} video(s) have an unknown age and are never matched by the age filter.` : '';
+        let addedNote = '';
+        if (s.addedOrder && !sort.available) addedNote = ` Added order ignored: ${sort.reason}`;
+        else if (s.addedOrder && incomplete) {
+          addedNote = ` ⚠ The list didn't finish loading (${videos.length} loaded${headerCount ? ` of ${headerCount}` : ''})${
+            sort.direction === 'newest' && s.addedMode === 'oldestN' ? ' — "Oldest N added" matched nothing; try Preview again' : ''
+          }.`;
+        } else if (s.addedOrder && headerCount && headerCount > videos.length) {
+          addedNote = ` Header says ${headerCount.toLocaleString('en-US')} videos, ${videos.length.toLocaleString('en-US')} listed (hidden unavailable videos aren't ranked).`;
+        }
+        if (s.matchMode === 'all') addedNote += ' Match: all ticked criteria.';
         setStatus(
           (plan.length
             ? `Dry run: ${plan.length} of ${videos.length} videos match. Untick any to keep, then click Remove and confirm.`
-            : `Dry run: no matches among ${videos.length} videos.`) + ageNote
+            : `Dry run: no matches among ${videos.length} videos.`) + ageNote + addedNote
         );
         return plan;
       } finally {
@@ -444,6 +497,14 @@
             st.topChannelsByDuration.map((c) => ({ label: c.channel, value: c.durationSec, display: H(c.durationSec) })),
             { channel: true }
           )}</div>
+          ${
+            st.addedOrder
+              ? `<div class="sec"><h4>Added order (publish age)</h4>${bars([
+                  { label: `Oldest ${st.addedOrder.sampleSize} added`, value: st.addedOrder.oldestAvgAgeDays || 0, display: `avg ${WLC.formatDays(st.addedOrder.oldestAvgAgeDays) || '—'}` },
+                  { label: `Newest ${st.addedOrder.sampleSize} added`, value: st.addedOrder.newestAvgAgeDays || 0, display: `avg ${WLC.formatDays(st.addedOrder.newestAvgAgeDays) || '—'}` },
+                ])}</div>`
+              : ''
+          }
           <div class="sec"><h4>Oldest</h4>${st.oldest.map((v) => mini(v, (x) => x.ageText)).join('') || '<div class="mini">—</div>'}</div>
           <div class="sec"><h4>Longest</h4>${st.longest.map((v) => mini(v, (x) => WLC.formatDuration(x.durationSec))).join('') || '<div class="mini">—</div>'}</div>
         </div>`;
@@ -462,6 +523,8 @@
         aStatus.textContent = 'Reading video details…';
         const t0 = Date.now();
         const videos = await WLC.parseAllSettled({ doc });
+        const sort = refreshSort();
+        WLC.annotateAddedOrder(videos, sort.available ? sort.direction : null);
         const stats = WLC.computeStats(videos, { watchedThreshold: state.settings.watchedThreshold });
         state.analytics = { videos, stats };
         renderAnalytics(stats);
@@ -539,6 +602,8 @@
         state.settings = readForm();
         WLC.saveSettings(state.settings);
         invalidatePlan();
+        if (t.dataset.k === 'addedSortOverride') refreshSort();
+        else applyAddedState();
       } else if (t.matches('input[data-i]')) {
         state.armed = false;
         updateRemoveButton();
@@ -553,6 +618,7 @@
       state,
       show() {
         panelEl.hidden = false;
+        refreshSort();
       },
       hide() {
         panelEl.hidden = true;
@@ -581,7 +647,9 @@
       async reloadSettings() {
         state.settings = await WLC.loadSettings();
         writeForm(state.settings);
+        refreshSort();
       },
+      refreshSort,
     };
     // Pick up changes made in the popup (or another tab) while the panel is idle.
     try {
@@ -592,6 +660,7 @@
           if (JSON.stringify(next) !== JSON.stringify(state.settings)) {
             state.settings = next;
             writeForm(state.settings);
+            refreshSort();
             invalidatePlan();
           }
         });

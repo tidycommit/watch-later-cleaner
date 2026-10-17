@@ -79,6 +79,19 @@
     return out.map((o) => o.item);
   }
 
+  /** Average publish age of the oldest 10% vs newest 10% added (needs addedRank from annotateAddedOrder). */
+  function addedOrderStats(avail) {
+    const ranked = avail.filter((v) => v.addedRank != null);
+    if (ranked.length < 2) return null;
+    ranked.sort((a, b) => a.addedRank - b.addedRank);
+    const k = Math.max(1, Math.round(ranked.length * 0.1));
+    const avg = (list) => {
+      const known = list.filter((v) => v.ageDays != null);
+      return known.length ? known.reduce((sum, v) => sum + v.ageDays, 0) / known.length : null;
+    };
+    return { sampleSize: k, oldestAvgAgeDays: avg(ranked.slice(0, k)), newestAvgAgeDays: avg(ranked.slice(-k)) };
+  }
+
   /**
    * Compute statistics for a list of parsed videos.
    * opts: { watchedThreshold = 90, topChannels = 15, topItems = 5 }
@@ -105,6 +118,7 @@
       topChannelsByDuration: [],
       oldest: [],
       longest: [],
+      addedOrder: null,
     };
     const channels = new Map();
     for (const v of videos) {
@@ -141,6 +155,7 @@
     stats.topChannelsByDuration = chList.slice().sort((a, b) => b.durationSec - a.durationSec || byName(a, b)).slice(0, nTop);
     const avail = videos.filter((v) => !v.unavailable);
     stats.oldest = topN(avail, nItems, (v) => v.ageDays).map(pickSummary);
+    stats.addedOrder = addedOrderStats(avail);
     stats.longest = topN(avail, nItems, (v) => v.durationSec).map(pickSummary);
     return stats;
   }
@@ -206,6 +221,7 @@
     ageBucket,
     durationBucket,
     computeStats,
+    addedOrderStats,
     formatDuration,
     formatHours,
     csvCell,

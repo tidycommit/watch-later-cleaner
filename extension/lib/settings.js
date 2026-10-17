@@ -17,6 +17,13 @@
     titleFilter: false,
     titleKeywords: '',
     removeAll: false,
+    addedOrder: false, // "Added order" criterion (needs the playlist sorted by Date added)
+    addedMode: 'oldestN', // oldestN | below | range
+    addedN: 100,
+    addedFrom: 1,
+    addedTo: 0, // 0 = to the end
+    addedSortOverride: 'auto', // auto | newest | oldest (manual fallback if the sort label can't be read)
+    matchMode: 'any', // any | all — how ticked criteria combine
     delayMs: 400,
     loadAllFirst: true,
     showKept: false, // also list non-matching videos (with their parsed age) in the preview
@@ -35,7 +42,7 @@
   function normalizeSettings(raw) {
     const s = Object.assign({}, DEFAULTS, raw && typeof raw === 'object' ? raw : {});
     const bool = (k) => (s[k] = Boolean(s[k]));
-    ['watched', 'olderThan', 'unavailable', 'channelFilter', 'titleFilter', 'removeAll', 'loadAllFirst', 'showKept'].forEach(bool);
+    ['watched', 'olderThan', 'unavailable', 'channelFilter', 'titleFilter', 'removeAll', 'loadAllFirst', 'showKept', 'addedOrder'].forEach(bool);
     s.watchedThreshold = clampNumber(s.watchedThreshold, 1, 100, DEFAULTS.watchedThreshold);
     s.olderThanValue = clampNumber(s.olderThanValue, 1, 100000, DEFAULTS.olderThanValue);
     s.olderThanUnit = String(s.olderThanUnit || '').trim().toLowerCase();
@@ -43,6 +50,12 @@
     if (!UNITS.includes(s.olderThanUnit)) s.olderThanUnit = DEFAULTS.olderThanUnit;
     s.delayMs = Math.round(clampNumber(s.delayMs, 100, 10000, DEFAULTS.delayMs));
     s.menuFallbackPosition = Math.round(clampNumber(s.menuFallbackPosition, 0, 20, DEFAULTS.menuFallbackPosition));
+    if (!['oldestN', 'below', 'range'].includes(s.addedMode)) s.addedMode = DEFAULTS.addedMode;
+    if (!['auto', 'newest', 'oldest'].includes(s.addedSortOverride)) s.addedSortOverride = 'auto';
+    if (s.matchMode !== 'all') s.matchMode = 'any';
+    s.addedN = Math.round(clampNumber(s.addedN, 1, 100000, DEFAULTS.addedN));
+    s.addedFrom = Math.round(clampNumber(s.addedFrom, 1, 100000, DEFAULTS.addedFrom));
+    s.addedTo = Math.round(clampNumber(s.addedTo, 0, 100000, 0));
     s.channelKeywords = String(s.channelKeywords || '');
     s.titleKeywords = String(s.titleKeywords || '');
     return s;

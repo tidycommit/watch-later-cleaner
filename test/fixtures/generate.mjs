@@ -67,11 +67,20 @@ function itemHtml(v, i) {
 </ytd-playlist-video-renderer>`;
 }
 
-export function generateWatchLaterHtml(n, seed = 7) {
+function sortMenuHtml(selected) {
+  const opts = ['Date added (newest)', 'Date added (oldest)', 'Most popular', 'Date published (newest)', 'Date published (oldest)'];
+  return `<yt-sort-filter-sub-menu-renderer style="display:block;padding:0 24px 8px;color:#606060;font-size:13px"><yt-dropdown-menu><tp-yt-paper-menu-button>
+<div id="trigger"><tp-yt-paper-button id="label"><div id="label-text">Sort: ${selected}</div></tp-yt-paper-button></div>
+<tp-yt-paper-listbox id="menu" style="display:none">${opts
+    .map((o) => `<a><tp-yt-paper-item role="option" aria-selected="${o === selected}"${o === selected ? ' class="iron-selected"' : ''}><div class="item">${o}</div></tp-yt-paper-item></a>`)
+    .join('')}</tp-yt-paper-listbox></tp-yt-paper-menu-button></yt-dropdown-menu></yt-sort-filter-sub-menu-renderer>`;
+}
+
+export function generateWatchLaterHtml(n, seed = 7, sort = 'Date added (newest)') {
   const rows = generateVideos(n, seed).map(itemHtml).join('\n');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Watch later - YouTube</title>
 <style>body{font-family:Roboto,Arial,sans-serif;margin:0;background:#f9f9f9} ytd-playlist-video-renderer{display:flex;justify-content:space-between;padding:6px 24px;border-bottom:1px solid #e5e5e5;background:#fff} #video-title{color:#0f0f0f;font-weight:500;text-decoration:none} ytd-thumbnail-overlay-resume-playback-renderer{display:block;height:4px;width:120px;background:#ccc} #progress{height:4px;background:red} #video-info,ytd-channel-name a{color:#606060;font-size:12px} h1{padding:16px 24px;margin:0}</style>
-</head><body><ytd-app><h1>Watch later · ${n.toLocaleString('en-US')} videos</h1><ytd-browse page-subtype="playlist"><ytd-playlist-video-list-renderer><div id="contents">
+</head><body><ytd-app><h1>Watch later</h1><ytd-playlist-byline-renderer style="display:block;padding:0 24px;color:#606060">${n.toLocaleString('en-US')} videos</ytd-playlist-byline-renderer>${sortMenuHtml(sort)}<ytd-browse page-subtype="playlist"><ytd-playlist-video-list-renderer><div id="contents">
 ${rows}
 </div></ytd-playlist-video-list-renderer></ytd-browse></ytd-app><ytd-popup-container></ytd-popup-container></body></html>`;
 }

@@ -10,6 +10,8 @@ with a dry-run preview before anything is removed.
 
 ![Analytics tab](docs/analytics.png)
 
+![Added order + match all](docs/added-order.png)
+
 ## Features
 
 - **Remove watched videos** — red progress bar ≥ a configurable threshold (default **90%**).
@@ -18,8 +20,18 @@ with a dry-run preview before anything is removed.
   See [How the age filter works](#how-the-age-filter-works). Videos whose age can't be read are never matched.
 - **Remove unavailable videos** — `[Deleted video]`, `[Private video]` and similar bracketed entries with no channel.
 - **Channel / title keyword filters** — comma-separated, case-insensitive "contains" matching.
+- **Added order** — YouTube doesn't show *when* you added a video, but Watch Later can be sorted by **Date added**.
+  With that sort active, the extension ranks videos by add order (added #1 = oldest) and offers:
+  **Oldest N added**, **Below position #X**, or **Positions #X–#Y** (positions as shown in the list; `0` = to the end).
+  - The sort is read from the playlist's sort menu ("Date added (newest|oldest)", with Korean/German/Spanish/French/… fallbacks).
+    If the list is sorted any other way, the criterion is disabled with *"Switch the playlist sort to Date added to use this"*.
+    If the label can't be read (unusual UI language), you can tell it the order manually.
+  - Uses the index numbers YouTube shows (e.g. 836), falling back to list order. "Oldest N added" always loads the full list first
+    (on a newest-first list the oldest are at the end) and matches nothing if the list didn't finish loading.
+  - Preview rows show e.g. `added #12 of 2,691 (oldest = 1)`. Removal is still by video ID, so positions shifting during removal don't matter.
 - **Remove all.**
-- Criteria are combined with **OR** (a video is removed if it matches any enabled criterion).
+- **Match any / all** (selector in the criteria header): *any* (default) removes a video matching any ticked criterion;
+  *all* requires every ticked criterion, e.g. "oldest 500 added **and** published at least 3 years ago".
 - **Dry run first:** *Preview* shows the count and the list of matched videos (with the reason each matched).
   Untick anything you want to keep. *Remove* then needs a second **Confirm** click.
 - Removal works by **simulating the UI**: each item's **⋮** menu → **Remove from Watch later**, with a configurable
@@ -49,7 +61,8 @@ Click **Analyze playlist**: it auto-scrolls to load the whole list (if that opti
 - duration distribution: < 5 min, 5–20 min, 20–60 min, 1–2 h, 2 h+, unknown (live/upcoming have no duration badge);
 - title script mix (Latin, Hangul, Hangul + Latin, Japanese, Chinese, Cyrillic, …);
 - top 15 channels by number of videos and by total duration — **click a channel** to prefill the Clean tab's channel filter;
-- the 5 oldest and 5 longest videos.
+- the 5 oldest and 5 longest videos;
+- when sorted by Date added: average publish age of the oldest 10% vs newest 10% added.
 
 **Export CSV / Export JSON** download `position, title, channel, videoId, url, duration, durationSeconds, progressPercent,
 publishedText, ageDays, unavailable` (JSON also includes the stats). The CSV has a UTF-8 BOM (Korean titles open correctly

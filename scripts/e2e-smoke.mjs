@@ -147,7 +147,7 @@ try {
     };
   });
   console.log('  analytics:', a.status, '|', a.cards.join(' | '));
-  check(a.cards[0] === '2,750 videos' && a.sections === 8 && a.channels >= 20, 'analytics renders in the panel for 2,750 items (8 sections, clickable channels)');
+  check(a.cards[0] === '2,750 videos' && a.sections === 9 && a.channels >= 20, 'analytics renders in the panel for 2,750 items (9 sections incl. added order, clickable channels)');
   await page.screenshot({ path: compactShot });
   await sr(() => {
     const s = document.getElementById('wlc-panel-host').shadowRoot;
@@ -165,6 +165,53 @@ try {
     return { name, value: s.querySelector('[data-k="channelKeywords"]').value, checked: s.querySelector('[data-k="channelFilter"]').checked, cleanVisible: !s.querySelector('.view-clean').hidden };
   });
   check(prefill.value === prefill.name && prefill.checked && prefill.cleanVisible, `clicking channel "${prefill.name}" prefills the Clean tab's channel filter`);
+
+  // Added-order criterion: "oldest 500 added" AND "published at least 3 years ago" on the 2,750-item page (Date added newest).
+  await page.goto(WL_URL, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.getElementById('wlc-panel-host')?.shadowRoot?.querySelector('.fab'), { timeout: 30000 });
+  const sortNote = await sr(() => {
+    const s = document.getElementById('wlc-panel-host').shadowRoot;
+    s.querySelector('.fab').click();
+    const set = (k, v) => {
+      const el = s.querySelector(`[data-k="${k}"]`);
+      if (el.type === 'checkbox') el.checked = v;
+      else el.value = v;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('removeAll', false);
+    set('channelFilter', false);
+    set('watched', false);
+    set('unavailable', false);
+    set('showKept', false);
+    set('olderThan', true);
+    set('olderThanValue', '3');
+    set('olderThanUnit', 'years');
+    set('addedOrder', true);
+    set('addedMode', 'oldestN');
+    set('addedN', '500');
+    set('matchMode', 'all');
+    s.querySelector('.btn-preview').click();
+    return s.querySelector('.sort-note').textContent;
+  });
+  console.log('  sort note:', sortNote);
+  await page.waitForFunction(() => /Dry run/.test(document.getElementById('wlc-panel-host').shadowRoot.querySelector('.status').textContent), { timeout: 60000 });
+  const ao = await sr(() => {
+    const s = document.getElementById('wlc-panel-host').shadowRoot;
+    return { status: s.querySelector('.status').textContent, metas: [...s.querySelectorAll('.list .item .c')].map((c) => c.textContent), reasons: [...s.querySelectorAll('.list .item .r')].map((c) => c.textContent) };
+  });
+  console.log('  status:', ao.status);
+  const ranks = ao.metas.map((m) => Number((m.match(/added #([\d,]+) of/) || [])[1]?.replace(/,/g, '')));
+  check(
+    /Date added \(newest\)/.test(sortNote) && ao.metas.length > 0 && ranks.every((r) => r >= 1 && r <= 500) && ao.reasons.every((r) => /≥ 3 years/.test(r) && /oldest 500 added/.test(r)),
+    `added order: ${ao.metas.length} matches, all within oldest 500 added AND published ≥ 3 years (match: all)`
+  );
+  await sr(() => {
+    const s = document.getElementById('wlc-panel-host').shadowRoot;
+    s.querySelector('.body.view-clean').scrollTop = 140;
+  });
+  const addedShot = shot.replace(/wl_cleaner_panel(\.png)$/, 'wl_cleaner_added_order$1');
+  await page.screenshot({ path: addedShot });
+  console.log(`  screenshot: ${addedShot}`);
 } finally {
   await browser.close();
 }
