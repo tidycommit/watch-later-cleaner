@@ -97,6 +97,21 @@
     { re: /há\s+(\d+|um|uma)\s+(anos?|mês|meses|semanas?|dias?|horas?|minutos?)(?![a-zà-ÿ])/, units: { ano: 'year', anos: 'year', mês: 'month', meses: 'month', semana: 'week', semanas: 'week', dia: 'day', dias: 'day', hora: 'hour', horas: 'hour', minuto: 'minute', minutos: 'minute' } },
     // Italian: "3 anni fa"
     { re: /(\d+|un|una)\s+(anni|anno|mesi|mese|settimane|settimana|giorni|giorno|ore|ora|minuti|minuto)\s+fa(?![a-zà-ÿ])/, units: { anno: 'year', anni: 'year', mese: 'month', mesi: 'month', settimana: 'week', settimane: 'week', giorno: 'day', giorni: 'day', ora: 'hour', ore: 'hour', minuto: 'minute', minuti: 'minute' } },
+    // Korean: "3년 전", "2개월 전"
+    { re: /(\d+)\s*(년|개월|달|주|일|시간|분|초)\s*전/, units: { 년: 'year', 개월: 'month', 달: 'month', 주: 'week', 일: 'day', 시간: 'hour', 분: 'minute', 초: 'second' } },
+    // Japanese and Chinese (Hans and Hant): "3年前", "2か月前", "5天前", "3個月前"
+    {
+      re: /(\d+)\s*(年|ヶ月|か月|カ月|ヵ月|个月|個月|月|週間|週|周|天|日間|日|時間|小时|小時|分钟|分鐘|分|秒)前/,
+      units: {
+        年: 'year',
+        ヶ月: 'month', か月: 'month', カ月: 'month', ヵ月: 'month', 个月: 'month', 個月: 'month', 月: 'month',
+        週間: 'week', 週: 'week', 周: 'week',
+        天: 'day', 日間: 'day', 日: 'day',
+        時間: 'hour', 小时: 'hour', 小時: 'hour',
+        分钟: 'minute', 分鐘: 'minute', 分: 'minute',
+        秒: 'second',
+      },
+    },
   ];
 
   /** Normalize whitespace incl. NBSP (\u00a0), thin/narrow spaces (\u2009, \u202f) and zero-width chars. */
@@ -130,6 +145,9 @@
     }
     if (/\byesterday\b/.test(t)) return { count: 1, unit: 'day', days: 1, match: 'yesterday' };
     if (/\b(today|just now)\b/.test(t)) return { count: 0, unit: 'day', days: 0, match: 'today' };
+    if (t.includes('어제')) return { count: 1, unit: 'day', days: 1, match: '어제' };
+    if (t.includes('昨天')) return { count: 1, unit: 'day', days: 1, match: '昨天' };
+    if (t.includes('昨日')) return { count: 1, unit: 'day', days: 1, match: '昨日' };
     for (const rule of LOCALE_RULES) {
       m = t.match(rule.re);
       if (m && rule.units[m[2]]) {
@@ -273,8 +291,34 @@
     };
   }
 
+  /**
+   * The playlist browse that is actually on screen. YouTube can keep another ytd-browse mounted
+   * under the miniplayer (or hidden) after a SPA navigation; item queries must ignore that tree
+   * when a primary playlist browse exists. Returns null when the page has no ytd-browse (fixtures).
+   */
+  function activePlaylistRoot(doc) {
+    const d = doc || document;
+    if (!d.querySelectorAll) return null;
+    const browses = Array.from(d.querySelectorAll('ytd-browse')).filter((el) => !el.closest('ytd-miniplayer'));
+    if (!browses.length) return null;
+    const playlist = browses.filter(
+      (el) => el.getAttribute('page-subtype') === 'playlist' || el.querySelector('ytd-playlist-video-list-renderer, ytd-playlist-video-renderer')
+    );
+    const pool = playlist.length ? playlist : browses;
+    const visible = pool.filter((el) => !el.hasAttribute('hidden') && el.getAttribute('aria-hidden') !== 'true');
+    const chosen = visible.length ? visible : pool;
+    return chosen[chosen.length - 1];
+  }
+
   function getItems(doc) {
-    return Array.from((doc || document).querySelectorAll(SELECTORS.item));
+    const d = doc || document;
+    const root = activePlaylistRoot(d) || d;
+    const all = Array.from(root.querySelectorAll(SELECTORS.item));
+    // If a later layout nests one row host inside another, keep the outer row.
+    return all.filter((el) => {
+      const parent = el.parentElement;
+      return !parent || !parent.closest(SELECTORS.item);
+    });
   }
 
   /** Parse all currently loaded playlist items. Each result keeps a reference to its element. */
@@ -307,6 +351,7 @@
     getVideoId,
     isUnavailable,
     parseItem,
+    activePlaylistRoot,
     getItems,
     parseAll,
     isWatchLaterUrl,

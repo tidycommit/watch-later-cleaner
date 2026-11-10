@@ -126,8 +126,9 @@ and clicking (Classic) stalls. Fast mode doesn't depend on either:
   then `#metadata-line`, the newer `yt-content-metadata-view-model` layout, and finally the title link's `aria-label`
   (with the title stripped, so a title like "What changed 2 years ago" isn't mistaken for the age).
 - **Formats:** "N unit(s) ago" with optional "Streamed"/"Premiered"/"Updated", "a/an/one", abbreviations
-  (`3y`, `3 yr`, `2mo`, `5 min`), "yesterday", non-breaking/thin spaces, plus German, Spanish, French, Portuguese
-  and Italian relative dates. Other UI languages show "age unknown".
+  (`3y`, `3 yr`, `2mo`, `5 min`), "yesterday", non-breaking/thin spaces, plus German, Spanish, French, Portuguese,
+  Italian, Korean (`3년 전`), Japanese (`2年前`, `2か月前`), and Chinese (`5天前`, `3個月前`) relative dates.
+  Other UI languages show "age unknown".
 - **Units:** week = 7 days, year = 365.25 days, month = year / 12 (≈ 30.44 days), so "12 months" and "1 year" are equal.
 - **Inclusive comparison:** YouTube rounds down ("1 year ago" means 12–23 months), so the shown age is a lower bound.
   A video matches when that lower bound is **≥** your threshold: "at least 1 year" (or "12 months") matches "1 year ago"
@@ -208,7 +209,8 @@ the tab in the background and saves a screenshot of the mode setting (`dist/wl_c
   YouTube changes its DOM from time to time; if that happens, selectors in `extension/lib/parse.js` and
   `extension/lib/remover.js` may need updating. The removal loop verifies each removal and stops after repeated failures.
 - The age filter uses the video's **publish** date as shown on the page; YouTube doesn't show when you *added* a video.
-  Relative dates are understood in English, German, Spanish, French, Portuguese and Italian only.
+  Relative dates are understood in English, German, Spanish, French, Portuguese, Italian, Korean, Japanese, and Chinese
+  (simplified and traditional) only.
 - Watch progress is only known for videos YouTube shows a red progress bar for.
 - Removing hundreds of videos takes a while (delay × count) — that's intentional to avoid tripping YouTube.
 - Fast mode uses YouTube's internal web requests (`youtubei/v1`). Their shape can change at any time; the Classic fallback covers that.

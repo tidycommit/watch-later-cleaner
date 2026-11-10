@@ -31,6 +31,19 @@ describe('parseAge text variants', () => {
     ['il y a 6 mois', 6 * MONTH],
     ['há 1 mês', MONTH],
     ['3 anni fa', 3 * YEAR],
+    ['3년 전', 3 * YEAR],
+    ['2개월 전', 2 * MONTH],
+    ['어제', 1],
+    ['2年前', 2 * YEAR],
+    ['2か月前', 2 * MONTH],
+    ['4週間前', 28],
+    ['10分前', 10 / 1440],
+    ['昨日', 1],
+    ['5天前', 5],
+    ['3 天前', 3],
+    ['3個月前', 3 * MONTH],
+    ['2小时前', 2 / 24],
+    ['昨天', 1],
   ];
   it.each(cases)('%j', (text, days) => {
     expect(WLC.parseAgeDays(text)).toBeCloseTo(days, 6);
@@ -84,6 +97,15 @@ describe('findAge across DOM variants (age-variants fixture)', () => {
 
   it('unknown age stays null', () => {
     expect(byCase.unknown).toMatchObject({ ageText: '', ageDays: null, ageSource: null });
+  });
+
+  it('reads Korean, Japanese, and Chinese relative dates from the row', () => {
+    expect(byCase.ko.ageDays).toBeCloseTo(3 * YEAR);
+    expect(byCase.ko.ageText).toBe('3년 전');
+    expect(byCase.ja.ageDays).toBeCloseTo(2 * YEAR);
+    expect(byCase.ja.ageText).toBe('2年前');
+    expect(byCase.zh.ageDays).toBe(5);
+    expect(byCase.zh.ageText).toBe('5天前');
   });
 });
 
@@ -148,6 +170,8 @@ describe('age filter boundaries (inclusive, displayed age is a lower bound)', ()
       'Nbsp spaces',
       'Abbreviated',
       'A year',
+      'Korean three years',
+      'Japanese two years',
     ]);
   });
 });
@@ -191,18 +215,18 @@ describe('panel preview shows parsed ages', () => {
     set('showKept', true);
     expect(panel.state.settings).toMatchObject({ olderThanValue: 12, olderThanUnit: 'months' });
     const plan = await panel.preview();
-    expect(plan).toHaveLength(6);
+    expect(plan).toHaveLength(8);
     const rows = [...panel.shadow.querySelectorAll('.list .item')];
-    expect(rows).toHaveLength(10);
+    expect(rows).toHaveLength(13);
     expect(rows[0].textContent).toContain('"1 year ago" → ~365 days');
     expect(rows[0].querySelector('.r').textContent).toBe('published "1 year ago" → ~365 days ≥ 12 months (~365 days)');
     const kept = rows.filter((r) => r.classList.contains('kept'));
-    expect(kept).toHaveLength(4);
-    expect(kept.map((r) => r.querySelector('input'))).toEqual([null, null, null, null]);
+    expect(kept).toHaveLength(5);
+    expect(kept.map((r) => r.querySelector('input'))).toEqual([null, null, null, null, null]);
     const unknownRow = kept.find((r) => r.textContent.includes('No age shown'));
     expect(unknownRow.textContent).toContain('age unknown');
     expect($('.status').textContent).toContain('1 video(s) have an unknown age');
-    expect($('.btn-remove').textContent).toBe('Remove 6…');
+    expect($('.btn-remove').textContent).toBe('Remove 8…');
     panel.destroy();
   });
 });

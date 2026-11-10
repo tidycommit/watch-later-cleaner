@@ -166,6 +166,34 @@
     return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   }
 
+  /**
+   * One panel host on the Watch Later page. Leaving the playlist destroys it; coming back creates
+   * exactly one. Extra hosts (a second mount, or a node YouTube kept around) are removed.
+   */
+  function syncWatchLaterPanel(doc, href) {
+    doc = doc || document;
+    const onWL = WLC.isWatchLaterUrl(href || '');
+    const hosts = Array.from(doc.querySelectorAll('#' + HOST_ID));
+    if (!onWL) {
+      for (const h of hosts) {
+        if (h.__wlc && h.__wlc.destroy) h.__wlc.destroy();
+        else h.remove();
+      }
+      return null;
+    }
+    // The real host is mounted on <html>. A stray node inside the page (miniplayer, a second mount)
+    // must not win just because it appears earlier in tree order.
+    const rank = (h) => (h.__wlc && h.parentElement === doc.documentElement ? 2 : h.__wlc ? 1 : 0);
+    const kept = hosts.slice().sort((a, b) => rank(b) - rank(a)).find((h) => h.__wlc) || null;
+    for (const h of hosts) {
+      if (h === kept) continue;
+      if (h.__wlc && h.__wlc.destroy) h.__wlc.destroy();
+      else h.remove();
+    }
+    if (kept && kept.isConnected && kept.__wlc) return kept.__wlc;
+    return createPanel(doc);
+  }
+
   function createPanel(doc) {
     doc = doc || document;
     const existing = doc.getElementById(HOST_ID);
@@ -866,6 +894,6 @@
     return api;
   }
 
-  Object.assign(WLC, { createPanel, PANEL_HOST_ID: HOST_ID });
+  Object.assign(WLC, { createPanel, syncWatchLaterPanel, PANEL_HOST_ID: HOST_ID });
   if (typeof module !== 'undefined' && module.exports) module.exports = WLC;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -154,7 +154,8 @@
    */
   function findItemByVideoId(doc, videoId) {
     if (!videoId) return null;
-    const links = (doc || document).querySelectorAll(`${WLC.SELECTORS.item} a[href*="v=${videoId}"]`);
+    const root = (WLC.activePlaylistRoot && WLC.activePlaylistRoot(doc)) || doc || document;
+    const links = root.querySelectorAll(`${WLC.SELECTORS.item} a[href*="v=${videoId}"]`);
     for (const a of links) {
       if (WLC.getVideoId(a.getAttribute('href')) === videoId) {
         const item = a.closest(WLC.SELECTORS.item);
@@ -287,7 +288,8 @@
     for (let round = 0; round < maxRounds && !shouldStop(); round++) {
       const items = WLC.getItems(doc);
       if (opts.onProgress) opts.onProgress(items.length);
-      const cont = doc.querySelector(WLC.SELECTORS.continuation);
+      const root = (WLC.activePlaylistRoot && WLC.activePlaylistRoot(doc)) || doc;
+      const cont = root.querySelector(WLC.SELECTORS.continuation);
       if (items.length === last && !cont) {
         if (++stable >= 2) break;
       } else if (items.length === last) {

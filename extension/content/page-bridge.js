@@ -48,7 +48,7 @@
     function initialData() {
       const candidates = [];
       try {
-        const el = doc.querySelector('ytd-browse[page-subtype="playlist"]');
+        const el = Array.from(doc.querySelectorAll('ytd-browse[page-subtype="playlist"]')).find((n) => !n.closest('ytd-miniplayer'));
         if (el && el.data) candidates.push(el.data);
       } catch (_) {
         /* not a Polymer page */
