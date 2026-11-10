@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadWLC, loadFixture } from './helpers.mjs';
+
+const LOCKUP_ROW_HTML = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures/lockup-row.html'), 'utf8');
 
 const WLC = loadWLC();
 
@@ -77,5 +82,28 @@ describe('parsing the Watch Later fixture', () => {
 
   it('finds the ⋮ menu button of every item', () => {
     for (const v of videos) expect(WLC.findMenuButton(v.el)?.getAttribute('aria-label')).toBe('Action menu');
+  });
+});
+
+describe('lockup playlist row DOM', () => {
+  beforeEach(() => loadFixture({ html: LOCKUP_ROW_HTML }));
+
+  it('parses a yt-lockup-view-model row with the classic selectors OR-ed in', () => {
+    const row = WLC.parseAll(document).find((v) => v.videoId === 'lockuprow01');
+    expect(row).toMatchObject({
+      title: 'Lockup row title',
+      channel: 'Lockup Channel',
+      durationSec: 45,
+      durationText: '0:45',
+      progress: 40,
+      ageText: '2 years ago',
+    });
+    expect(WLC.findMenuButton(row.el)?.getAttribute('aria-label')).toBe('Action menu');
+  });
+
+  it('does not count a lockup nested inside a classic row as a second video', () => {
+    const items = WLC.getItems(document);
+    expect(items.some((el) => el.tagName === 'YT-LOCKUP-VIEW-MODEL' && el.closest('ytd-playlist-video-renderer'))).toBe(false);
+    expect(WLC.parseAll(document).map((v) => v.videoId).sort()).toEqual(['classicrow1', 'lockuprow01']);
   });
 });

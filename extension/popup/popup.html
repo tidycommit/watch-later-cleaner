@@ -44,6 +44,10 @@
       <label><input type="checkbox" name="loadAllFirst" /> Load all first (Classic: auto-scroll)</label>
       <label><input type="checkbox" name="showKept" /> Preview: also list kept videos (with parsed age)</label>
       <label>Delay between removals <input type="number" name="delayMs" min="100" step="50" /> ms</label>
+      <label title="Optional pause after every N successful removals, and after HTTP 429. 0 turns it off."
+        >Cool down every <input type="number" name="coolDownEvery" min="0" step="1" /> for
+        <input type="number" name="coolDownMs" min="0" step="1000" /> ms</label
+      >
       <label title="Used only if the menu entry can't be found by text or icon (unusual UI language). 0 disables."
         >Menu fallback position <input type="number" name="menuFallbackPosition" min="0" max="20"
       /></label>

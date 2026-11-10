@@ -1,0 +1,71 @@
+{
+  "contents": {
+    "twoColumnBrowseResultsRenderer": {
+      "tabs": [
+        {
+          "tabRenderer": {
+            "content": {
+              "sectionListRenderer": {
+                "contents": [
+                  {
+                    "itemSectionRenderer": {
+                      "contents": [
+                        {
+                          "playlistVideoListRenderer": {
+                            "playlistId": "WL",
+                            "contents": [
+                              {
+                                "playlistVideoRenderer": {
+                                  "videoId": "legacyVid01",
+                                  "setVideoId": "SETLEGACY0000001",
+                                  "title": { "simpleText": "Legacy row" },
+                                  "index": { "simpleText": "1" },
+                                  "shortBylineText": { "simpleText": "Legacy Channel" },
+                                  "lengthSeconds": "90",
+                                  "lengthText": { "simpleText": "1:30" },
+                                  "isPlayable": true
+                                }
+                              },
+                              {
+                                "lockupViewModel": {
+                                  "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+                                  "contentId": "lockupVid09",
+                                  "playlistItemData": { "setVideoId": "SETLOCKUP0000009" },
+                                  "metadata": {
+                                    "lockupMetadataViewModel": {
+                                      "title": { "content": "Lockup row" },
+                                      "metadata": {
+                                        "contentMetadataViewModel": {
+                                          "metadataRows": [
+                                            { "metadataParts": [{ "text": { "content": "Lockup Channel" } }] },
+                                            { "metadataParts": [{ "text": { "content": "3 weeks ago" } }] }
+                                          ]
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "contentImage": {
+                                    "thumbnailViewModel": {
+                                      "overlays": [
+                                        { "thumbnailOverlayBadgeViewModel": { "thumbnailBadges": [{ "thumbnailBadgeViewModel": { "text": "0:45" } }] } }
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "header": { "playlistHeaderRenderer": { "playlistId": "WL" } }
+}

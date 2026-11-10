@@ -41,7 +41,9 @@ with a dry-run preview before anything is removed.
   **Classic (page clicks)** scrolls the page and clicks each item's **⋮** menu → **Remove from Watch later**. Classic is also the
   automatic fallback when Fast can't run.
 - Both modes remove one video at a time with a configurable delay (default **400 ms**; Fast adds 0–200 ms of jitter), a progress
-  bar/counter and a **Stop** button. Built for long lists (thousands of items). Classic specifics:
+  bar/counter and a **Stop** button. Built for long lists (thousands of items). Optional **cool-down** (off by default):
+  after every N successful removals, and after an HTTP 429 (`api-throttled`), the run pauses for a chosen number of milliseconds
+  and shows a countdown. **Stop** during that pause ends the run; **Resume** continues with whatever is left. Classic specifics:
   - the removal plan is a list of **video IDs**; each video is located fresh by ID right before acting and success is verified by
     that ID disappearing (YouTube re-uses row elements after removals, so element references can't be trusted),
     with YouTube's "Removed from Watch later" toast as a second confirmation;
@@ -100,7 +102,9 @@ When the YouTube tab isn't focused or visible, Chrome throttles its timers and Y
 and clicking (Classic) stalls. Fast mode doesn't depend on either:
 
 - **Listing.** It reads the Watch Later list from the page's initial data (`ytInitialData`), then fetches the remaining pages
-  from `/youtubei/v1/browse` continuations, the request YouTube's page makes when you scroll. For each video it reads the video ID,
+  from `/youtubei/v1/browse` continuations, the request YouTube's page makes when you scroll. Rows may be classic `playlistVideoRenderer`
+  items or the newer `lockupViewModel` / `playlistVideoViewModel` items (or a mix). When a lockup row is seen, the debug log records
+  `list shape: lockup`. For each video it reads the video ID,
   the playlist entry ID (`setVideoId`), title, channel, duration, watch progress (resume bar %), unavailable/private state,
   the "3 years ago" text and the position. The same filters, preview and analytics then run on that list.
 - **Removal.** Each video is removed with `/youtubei/v1/browse/edit_playlist` (`playlistId: "WL"`, `ACTION_REMOVE_VIDEO` with
@@ -204,9 +208,10 @@ the tab in the background and saves a screenshot of the mode setting (`dist/wl_c
 
 ## Limitations
 
-- Relies on YouTube's page structure (`ytd-playlist-video-renderer`, the resume-playback progress bar, the ⋮ popup menu).
-  YouTube changes its DOM from time to time; if that happens, selectors in `extension/lib/parse.js` and
-  `extension/lib/remover.js` may need updating. The removal loop verifies each removal and stops after repeated failures.
+- Relies on YouTube's page structure (`ytd-playlist-video-renderer` and `yt-lockup-view-model`, the resume-playback progress bar, the ⋮ popup menu).
+  YouTube changes its DOM and its InnerTube JSON from time to time; if that happens, selectors in `extension/lib/parse.js` and the
+  parsers in `extension/lib/innertube.js` may need updating. The removal loop verifies each removal and stops after repeated failures.
+  Fast listing accepts both `playlistVideoRenderer` and `lockupViewModel` rows. An unrecognized list still falls back to Classic.
 - The age filter uses the video's **publish** date as shown on the page; YouTube doesn't show when you *added* a video.
   Relative dates are understood in English, German, Spanish, French, Portuguese and Italian only.
 - Watch progress is only known for videos YouTube shows a red progress bar for.

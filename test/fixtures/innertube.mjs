@@ -65,6 +65,53 @@ export function playlistVideoRenderer(v, i, { menuOnlySetId = false } = {}) {
   return r;
 }
 
+/** One lockupViewModel (the playlist row shape that replaced playlistVideoRenderer on newer clients). */
+export function lockupViewModel(v, i, { menuOnlySetId = false, videoIdInEndpointOnly = false } = {}) {
+  const setVideoId = setVideoIdFor(v.id);
+  const rows = [];
+  if (v.channel) rows.push({ metadataParts: [{ text: { content: v.channel } }] });
+  const meta = [];
+  if (v.views) meta.push({ text: { content: v.views } });
+  if (v.age) meta.push({ text: { content: v.age } });
+  if (meta.length) rows.push({ metadataParts: meta });
+  const overlays = [];
+  if (v.duration != null) {
+    overlays.push({
+      thumbnailOverlayBadgeViewModel: {
+        thumbnailBadges: [{ thumbnailBadgeViewModel: { text: fmtDuration(v.duration), badgeStyle: 'THUMBNAIL_OVERLAY_BADGE_STYLE_DEFAULT' } }],
+      },
+    });
+  }
+  if (v.progress != null) {
+    overlays.push({ thumbnailBottomOverlayViewModel: { progressBar: { thumbnailOverlayProgressBarViewModel: { startPercent: v.progress } } } });
+  }
+  const model = {
+    contentType: 'LOCKUP_CONTENT_TYPE_VIDEO',
+    metadata: { lockupMetadataViewModel: { title: { content: v.title }, metadata: { contentMetadataViewModel: { metadataRows: rows } } } },
+    contentImage: { thumbnailViewModel: { overlays } },
+    rendererContext: {
+      accessibilityContext: { label: v.channel ? `${v.title} by ${v.channel} ${v.views || ''} ${v.age || ''}`.replace(/\s+/g, ' ').trim() : v.title },
+      commandContext: { onTap: { innertubeCommand: { watchEndpoint: { videoId: v.id, playlistId: 'WL', index: i } } } },
+    },
+    menu: {
+      menuRenderer: {
+        items: [
+          {
+            menuServiceItemRenderer: {
+              text: { content: 'Remove from Watch later' },
+              serviceEndpoint: { playlistEditEndpoint: { playlistId: 'WL', actions: [{ action: 'ACTION_REMOVE_VIDEO', setVideoId }] } },
+            },
+          },
+        ],
+      },
+    },
+  };
+  if (!videoIdInEndpointOnly) model.contentId = v.id;
+  if (!menuOnlySetId) model.playlistItemData = { setVideoId };
+  if (!v.channel) model.isPlayable = false;
+  return model;
+}
+
 export function continuationItem(token, shape = 'command') {
   if (shape === 'executor') {
     return { continuationItemRenderer: { trigger: 'CONTINUATION_TRIGGER_ON_ITEM_SHOWN', continuationEndpoint: { commandExecutorCommand: { commands: [{ playlistVotingRefreshPopupCommand: {} }, { continuationCommand: { token, request: 'CONTINUATION_REQUEST_TYPE_BROWSE' } }] } } } };
@@ -78,6 +125,55 @@ function pageItems(videos, offset, pageSize, shape, opts) {
   const items = videos.slice(offset, offset + pageSize).map((v, k) => ({ playlistVideoRenderer: playlistVideoRenderer(v, offset + k, opts) }));
   if (offset + pageSize < videos.length) items.push(continuationItem(tokenFor(offset + pageSize), shape));
   return items;
+}
+
+function lockupPageItems(videos, offset, pageSize, shape, opts) {
+  const items = videos.slice(offset, offset + pageSize).map((v, k) => {
+    if (opts.asViewModel) return { playlistVideoViewModel: lockupViewModel(v, offset + k, opts) };
+    return { lockupViewModel: lockupViewModel(v, offset + k, opts) };
+  });
+  if (offset + pageSize < videos.length) items.push(continuationItem(tokenFor(offset + pageSize), shape));
+  return items;
+}
+
+/** Same shell as buildInitialData, but every row is a lockupViewModel. */
+export function buildLockupInitialData(videos, opts = {}) {
+  const pageSize = opts.pageSize || 100;
+  const items = lockupPageItems(videos, 0, pageSize, opts.shape || 'command', opts);
+  if (opts.bare) {
+    return {
+      contents: { twoColumnBrowseResultsRenderer: { tabs: [{ tabRenderer: { selected: true, content: { sectionListRenderer: { contents: [{ itemSectionRenderer: { contents: items } }] } } } }] } },
+      header: { playlistHeaderRenderer: { playlistId: opts.playlistId || 'WL', title: { simpleText: 'Watch later' } } },
+    };
+  }
+  return {
+    contents: {
+      twoColumnBrowseResultsRenderer: {
+        tabs: [{ tabRenderer: { selected: true, content: { sectionListRenderer: { contents: [{ itemSectionRenderer: { contents: [{ playlistVideoListRenderer: { contents: items, playlistId: opts.playlistId || 'WL' } }] } }] } } } }],
+      },
+    },
+    header: { playlistHeaderRenderer: { playlistId: opts.playlistId || 'WL', title: { simpleText: 'Watch later' } } },
+  };
+}
+
+export function buildLockupContinuation(videos, offset, opts = {}) {
+  const items = lockupPageItems(videos, offset, opts.pageSize || 100, opts.shape || 'command', opts);
+  return { onResponseReceivedActions: [{ appendContinuationItemsAction: { continuationItems: items } }] };
+}
+
+/** One legacy row and one lockup row in the same playlist list. */
+export function buildMixedInitialData(videos, opts = {}) {
+  const legacy = videos[0];
+  const lock = videos[1] || videos[0];
+  const items = [{ playlistVideoRenderer: playlistVideoRenderer(legacy, 0, opts) }, { lockupViewModel: lockupViewModel(lock, 1, opts) }];
+  return {
+    contents: {
+      twoColumnBrowseResultsRenderer: {
+        tabs: [{ tabRenderer: { selected: true, content: { sectionListRenderer: { contents: [{ itemSectionRenderer: { contents: [{ playlistVideoListRenderer: { contents: items, playlistId: 'WL' } }] } }] } } } }],
+      },
+    },
+    header: { playlistHeaderRenderer: { playlistId: 'WL', title: { simpleText: 'Watch later' } } },
+  };
 }
 
 /** ytInitialData-like object for https://www.youtube.com/playlist?list=WL (first page + continuation). */

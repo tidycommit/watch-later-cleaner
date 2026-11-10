@@ -150,10 +150,11 @@
         source = 'browse';
       }
       const first = WLC.parseBrowseResponse(data, 0);
-      if (first.kind !== 'initial') throw new FastError('unexpected-browse-shape', 'no playlistVideoListRenderer');
+      if (first.kind !== 'initial') throw new FastError('unexpected-browse-shape', 'no playlist items');
       const raw = first.videos.slice();
       let token = first.continuation;
       let pages = 1;
+      let listShape = first.listShape || null;
       const seen = new Set();
       if (o.onProgress) o.onProgress(raw.length);
       while (token && !o.firstPageOnly && !shouldStop() && pages < maxPages) {
@@ -163,11 +164,12 @@
         const page = WLC.parseBrowseResponse(json, raw.length);
         if (page.kind === 'unknown') throw new FastError('unexpected-continuation-shape');
         raw.push(...page.videos);
+        if (page.listShape && page.listShape !== listShape) listShape = listShape && listShape !== page.listShape ? 'mixed' : page.listShape;
         token = page.continuation;
         pages++;
         if (o.onProgress) o.onProgress(raw.length);
       }
-      return { videos: raw.map(toVideo), complete: !token, pages, source };
+      return { videos: raw.map(toVideo), complete: !token, pages, source, listShape };
     }
 
     /** One edit_playlist request removing one video. Same result shape as remover.js attemptRemove. */
@@ -219,8 +221,9 @@
           if (opts.needPageOrder && !pageOrderMatches(doc, r.videos)) {
             fallbackReason = 'list order differs from the page (sort changed?)';
           } else {
+            if (r.listShape === 'lockup' || r.listShape === 'mixed') note('list shape: lockup' + (r.listShape === 'mixed' ? ' (mixed with playlistVideoRenderer)' : ''));
             note(`listed ${r.videos.length} via ${r.source}, ${r.pages} page(s)${r.complete ? '' : ', incomplete'}`);
-            return { videos: r.videos, incomplete: !r.complete, mode: 'fast', fallbackReason: null };
+            return { videos: r.videos, incomplete: !r.complete, mode: 'fast', fallbackReason: null, listShape: r.listShape || null };
           }
         } catch (e) {
           fallbackReason = String(e.message || e).slice(0, 160);

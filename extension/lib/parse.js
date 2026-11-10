@@ -4,10 +4,20 @@
   const WLC = (root.WLC = root.WLC || {});
 
   const SELECTORS = Object.freeze({
-    item: 'ytd-playlist-video-renderer',
+    // Classic rows, plus the lockup view-model host YouTube uses on newer playlist pages.
+    // getItems drops a lockup nested inside a classic row so one video is not counted twice.
+    item: ['ytd-playlist-video-renderer', 'yt-lockup-view-model'].join(', '),
     list: 'ytd-playlist-video-list-renderer #contents, ytd-section-list-renderer #contents',
     continuation: 'ytd-continuation-item-renderer',
-    title: '#video-title, a#video-title, h3 a',
+    title: [
+      '#video-title',
+      'a#video-title',
+      '.yt-lockup-metadata-view-model-wiz__title',
+      '.yt-lockup-metadata-view-model__title',
+      'yt-lockup-metadata-view-model a[href*="watch"]',
+      'yt-lockup-metadata-view-model h3 a',
+      'h3 a',
+    ].join(', '),
     channel: [
       'ytd-channel-name #text a',
       'ytd-channel-name a',
@@ -15,6 +25,10 @@
       '#byline a',
       'yt-content-metadata-view-model a[href^="/@"]',
       'yt-content-metadata-view-model a[href^="/channel/"]',
+      'yt-lockup-metadata-view-model a[href^="/@"]',
+      'yt-lockup-metadata-view-model a[href^="/channel/"]',
+      '.yt-content-metadata-view-model-wiz a[href^="/@"]',
+      '.yt-content-metadata-view-model-wiz a[href^="/channel/"]',
       'ytd-channel-name #text',
       '#channel-name',
     ].join(', '),
@@ -22,6 +36,8 @@
       'ytd-thumbnail-overlay-resume-playback-renderer #progress',
       'ytd-thumbnail-overlay-resume-playback-renderer [id="progress"]',
       '.ytThumbnailOverlayProgressBarHostWatchedProgressBarSegment',
+      '.ytThumbnailOverlayProgressBarHostWatched',
+      '.yt-thumbnail-overlay-progress-bar-view-model [style*="width"]',
       '#overlays #progress',
     ].join(', '),
     // Containers that may hold "1.2M views • 3 years ago", in order of preference. Covers the classic
@@ -45,6 +61,8 @@
       'ytd-thumbnail-overlay-time-status-renderer badge-shape',
       'yt-thumbnail-overlay-badge-view-model .badge-shape-wiz__text',
       'yt-thumbnail-overlay-badge-view-model .yt-badge-shape__text',
+      'yt-thumbnail-badge-view-model .badge-shape-wiz__text',
+      '.yt-thumbnail-overlay-badge-view-model__badge .yt-badge-shape__text',
       'ytd-thumbnail-overlay-time-status-renderer',
     ].join(', '),
     // Elements whose aria-label usually reads "<title> by <channel> 1,234 views 3 years ago 12 minutes".
@@ -53,6 +71,8 @@
       'ytd-menu-renderer yt-icon-button#button button',
       'ytd-menu-renderer #button button',
       'ytd-menu-renderer button',
+      'yt-lockup-view-model yt-icon-button button',
+      'yt-lockup-metadata-view-model button[aria-label]',
       '#menu button',
       'button[aria-label]',
     ].join(', '),
@@ -274,7 +294,12 @@
   }
 
   function getItems(doc) {
-    return Array.from((doc || document).querySelectorAll(SELECTORS.item));
+    const all = Array.from((doc || document).querySelectorAll(SELECTORS.item));
+    // A lockup host nested inside a classic renderer is the same row. Keep the outer one.
+    return all.filter((el) => {
+      const parent = el.parentElement;
+      return !parent || !parent.closest(SELECTORS.item);
+    });
   }
 
   /** Parse all currently loaded playlist items. Each result keeps a reference to its element. */
