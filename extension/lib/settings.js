@@ -16,6 +16,14 @@
     channelKeywords: '',
     titleFilter: false,
     titleKeywords: '',
+    shorts: false, // duration ≤ 60s; null duration never matches
+    durationFilter: false,
+    durationCmp: 'shorter', // shorter | longer (both inclusive)
+    durationValue: 10,
+    durationUnit: 'minutes', // minutes | seconds
+    duplicates: false, // keep the first occurrence of each videoId
+    keepChannels: '', // always-keep allowlist; empty = no effect
+    keepTitles: '',
     removeAll: false,
     addedOrder: false, // "Added order" criterion (needs the playlist sorted by Date added)
     addedMode: 'oldestN', // oldestN | below | range
@@ -45,7 +53,7 @@
   function normalizeSettings(raw) {
     const s = Object.assign({}, DEFAULTS, raw && typeof raw === 'object' ? raw : {});
     const bool = (k) => (s[k] = Boolean(s[k]));
-    ['watched', 'olderThan', 'unavailable', 'channelFilter', 'titleFilter', 'removeAll', 'loadAllFirst', 'showKept', 'addedOrder'].forEach(bool);
+    ['watched', 'olderThan', 'unavailable', 'channelFilter', 'titleFilter', 'shorts', 'durationFilter', 'duplicates', 'removeAll', 'loadAllFirst', 'showKept', 'addedOrder'].forEach(bool);
     s.watchedThreshold = clampNumber(s.watchedThreshold, 1, 100, DEFAULTS.watchedThreshold);
     s.olderThanValue = clampNumber(s.olderThanValue, 1, 100000, DEFAULTS.olderThanValue);
     s.olderThanUnit = String(s.olderThanUnit || '').trim().toLowerCase();
@@ -62,6 +70,11 @@
     s.addedTo = Math.round(clampNumber(s.addedTo, 0, 100000, 0));
     s.channelKeywords = String(s.channelKeywords || '');
     s.titleKeywords = String(s.titleKeywords || '');
+    s.keepChannels = String(s.keepChannels || '');
+    s.keepTitles = String(s.keepTitles || '');
+    s.durationValue = Math.round(clampNumber(s.durationValue, 1, 100000, DEFAULTS.durationValue));
+    if (s.durationCmp !== 'longer') s.durationCmp = 'shorter';
+    if (s.durationUnit !== 'seconds') s.durationUnit = 'minutes';
     return s;
   }
 
