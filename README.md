@@ -177,6 +177,8 @@ npm run e2e       # headless Chrome smoke test against the local fixture (needs 
 npm run icons     # regenerate extension/icons/*.png
 ```
 
+GitHub Actions (`.github/workflows/ci.yml`) runs on pushes and pull requests: `npm ci`, `npm run lint`, `npm test`, and `npm run build` on Node 20, with the npm cache. A separate **optional** job runs `npm run e2e` only when Chrome can be installed. That job serves local fixtures and blocks every other network request, so it never contacts YouTube. If Chrome cannot be installed, the e2e job says so and stays green. The workflow uploads no secrets and no store artifacts. `node_modules/` and `dist/` stay untracked.
+
 Layout:
 
 ```
