@@ -232,6 +232,10 @@ the tab in the background and saves a screenshot of the mode setting (`dist/wl_c
 - Fast mode removes rows from the page after removing them on YouTube. YouTube's own page state doesn't know, so reload the page
   before using YouTube's own playlist controls.
 
+## Chrome Web Store
+
+Not published. [docs/store.md](docs/store.md) has single-purpose listing wording, a privacy-policy template, permission justification, a screenshot checklist, and how the build rejects remote code. It also notes Firefox MV3 differences (`browser` vs `chrome`, and `world: "MAIN"` from Firefox 128). No store submission is part of this repository.
+
 ## License
 
 MIT
