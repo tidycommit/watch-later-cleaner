@@ -144,6 +144,7 @@
           <div class="row"><label><input type="checkbox" data-k="loadAllFirst"> Load all videos first (Classic: auto-scroll)</label></div>
           <div class="row"><label><input type="checkbox" data-k="showKept"> Preview: also list kept videos (with parsed age)</label></div>
           <div class="row">Delay between removals <input type="number" min="100" step="50" data-k="delayMs"> ms</div>
+          <div class="row" title="Optional. After every N successful removals, and after an HTTP 429, wait this long. 0 on either field turns the pause off.">Cool down every <input type="number" min="0" step="1" data-k="coolDownEvery"> removals for <input type="number" min="0" step="1000" data-k="coolDownMs"> ms</div>
         </fieldset>
         <div class="actions">
           <button class="btn-preview">Preview (dry run)</button>
@@ -498,7 +499,8 @@
         }
         if (s.matchMode === 'all') addedNote += ' Match: all ticked criteria.';
         if (plan.excludedByAllowlist) addedNote += ` ${plan.excludedByAllowlist} matched but kept by the allowlist.`;
-        const modeNote = listed.fallbackReason ? ` [Classic: Fast mode unavailable — ${listed.fallbackReason}]` : ` [${modeLabel(listed.mode)}]`;
+        const shapeNote = listed.listShape === 'lockup' || listed.listShape === 'mixed' ? ', list shape: lockup' : '';
+        const modeNote = listed.fallbackReason ? ` [Classic: Fast mode unavailable — ${listed.fallbackReason}]` : ` [${modeLabel(listed.mode)}${shapeNote}]`;
         setStatus(
           (plan.length
             ? `Dry run: ${plan.length} of ${videos.length} videos match. Untick any to keep, then click Remove and confirm.`
@@ -528,15 +530,23 @@
           api: fastApi(),
           doc,
           delayMs: s.delayMs,
+          coolDownEvery: s.coolDownEvery,
+          coolDownMs: s.coolDownMs,
           fallbackPosition: s.menuFallbackPosition,
           shouldStop: () => state.stop,
           onLog: logEvent,
           onFallback: (reason) => setStatus(`Fast mode failed (${reason}) — switching to Classic (page clicks)…`),
+          onCoolDown: (c) => {
+            const sec = Math.max(0, Math.ceil(c.remainingMs / 1000));
+            const why = c.reason === 'api-throttled' ? 'HTTP 429' : `every ${s.coolDownEvery} removals`;
+            setStatus(c.done ? `Cool-down finished (${why}). Continuing…` : `Cooling down… ${sec}s left (${why}). Stop ends the run.`);
+          },
           onProgress: (p) => {
             setBar((p.done + p.failed + p.skipped) / p.total);
             let msg = `Removing (${modeLabel(p.mode)})… ${p.done}/${p.total} removed`;
             if (p.failed) msg += `, ${p.failed} failed`;
             if (p.skipped) msg += `, ${p.skipped} already gone`;
+            if (p.result && p.result.step === 'api-throttled') msg += ' (HTTP 429 — api-throttled)';
             if (p.delayMs > s.delayMs) msg += ` (slowed to ${p.delayMs} ms — YouTube may be throttling)`;
             setStatus(msg);
           },

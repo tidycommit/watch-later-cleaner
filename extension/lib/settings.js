@@ -33,6 +33,8 @@
     addedSortOverride: 'auto', // auto | newest | oldest (manual fallback if the sort label can't be read)
     matchMode: 'any', // any | all — how ticked criteria combine
     delayMs: 400,
+    coolDownEvery: 0, // pause after every N successful removals; 0 = off
+    coolDownMs: 0, // pause length. Also used after HTTP 429 when > 0. 0 = off
     loadAllFirst: true,
     showKept: false, // also list non-matching videos (with their parsed age) in the preview
     menuFallbackPosition: 3, // 1-based menu position used when text/icon match fails; 0 = disabled
@@ -60,6 +62,8 @@
     if (!s.olderThanUnit.endsWith('s')) s.olderThanUnit += 's'; // accept "year" as well as "years"
     if (!UNITS.includes(s.olderThanUnit)) s.olderThanUnit = DEFAULTS.olderThanUnit;
     s.delayMs = Math.round(clampNumber(s.delayMs, 100, 10000, DEFAULTS.delayMs));
+    s.coolDownEvery = Math.round(clampNumber(s.coolDownEvery, 0, 100000, 0));
+    s.coolDownMs = Math.round(clampNumber(s.coolDownMs, 0, 30 * 60 * 1000, 0));
     s.menuFallbackPosition = Math.round(clampNumber(s.menuFallbackPosition, 0, 20, DEFAULTS.menuFallbackPosition));
     if (!['oldestN', 'below', 'range'].includes(s.addedMode)) s.addedMode = DEFAULTS.addedMode;
     if (!['auto', 'newest', 'oldest'].includes(s.addedSortOverride)) s.addedSortOverride = 'auto';

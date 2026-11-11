@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
 import { loadWLC } from './helpers.mjs';
-import { SAMPLE_VIDEOS, buildInitialData, buildContinuation, tokenFor, playlistVideoRenderer, setVideoIdFor, FAKE_YTCFG, sapisidHashNode } from './fixtures/innertube.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { SAMPLE_VIDEOS, buildInitialData, buildContinuation, buildLockupInitialData, buildLockupContinuation, buildMixedInitialData, tokenFor, playlistVideoRenderer, setVideoIdFor, FAKE_YTCFG, sapisidHashNode } from './fixtures/innertube.mjs';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const lockupFixture = JSON.parse(fs.readFileSync(path.join(here, 'fixtures/lockup-playlist.json'), 'utf8'));
+const mixedFixture = JSON.parse(fs.readFileSync(path.join(here, 'fixtures/mixed-playlist.json'), 'utf8'));
 
 const WLC = loadWLC();
 const sha1 = (s) => createHash('sha1').update(s, 'utf8').digest('hex');
@@ -189,5 +196,89 @@ describe('interpretEditResponse', () => {
     expect(unauth.detail).toBe('HTTP 401 UNAUTHENTICATED missing credential');
     expect(WLC.interpretEditResponse(false, 429, null)).toMatchObject({ step: 'api-throttled', retryable: true });
     expect(WLC.interpretEditResponse(false, 0, { error: { message: 'Failed to fetch' } })).toMatchObject({ step: 'api-network-error', retryable: true });
+  });
+});
+
+describe('lockupViewModel playlist rows', () => {
+  it('parses a lockup-only fixture (ids, setVideoId, duration, progress, age)', () => {
+    const r = WLC.parseBrowseResponse(lockupFixture);
+    expect(r).toMatchObject({ kind: 'initial', playlistId: 'WL', listShape: 'lockup', continuation: 'lockup-next' });
+    expect(r.videos).toHaveLength(2);
+    expect(r.videos[0]).toMatchObject({
+      index: 0,
+      videoId: 'lockupVid01',
+      setVideoId: 'SETLOCKUP0000001',
+      title: 'Lockup one',
+      channel: 'Lockup Channel',
+      durationSec: 600,
+      durationText: '10:00',
+      progress: 80,
+      unavailable: false,
+    });
+    expect(r.videos[0].ageCandidates).toContain('2 years ago');
+    expect(r.videos[1]).toMatchObject({ videoId: 'lockupVid02', setVideoId: 'SETLOCKUP0000002', title: '[Deleted video]', channel: '', unavailable: true });
+    expect(WLC.isWatchLaterData(lockupFixture)).toBe(true);
+  });
+
+  it('parses a mixed legacy + lockup page', () => {
+    const r = WLC.parseBrowseResponse(mixedFixture);
+    expect(r.listShape).toBe('mixed');
+    expect(r.videos.map((v) => [v.videoId, v.setVideoId, v.title])).toEqual([
+      ['legacyVid01', 'SETLEGACY0000001', 'Legacy row'],
+      ['lockupVid09', 'SETLOCKUP0000009', 'Lockup row'],
+    ]);
+    expect(r.videos[0].durationSec).toBe(90);
+    expect(r.videos[1]).toMatchObject({ durationSec: 45, durationText: '0:45', channel: 'Lockup Channel' });
+    expect(r.videos[1].ageCandidates).toContain('3 weeks ago');
+  });
+
+  it('parses lockup continuations and keeps indexes across pages', () => {
+    const videos = SAMPLE_VIDEOS.slice(0, 3);
+    const page = WLC.parseBrowseResponse(buildLockupContinuation(videos, 2, { pageSize: 2 }), 2);
+    expect(page).toMatchObject({ kind: 'continuation', listShape: 'lockup' });
+    expect(page.videos.map((v) => v.index)).toEqual([2]);
+    expect(page.videos[0].videoId).toBe(videos[2].id);
+    expect(page.videos[0].setVideoId).toBe(setVideoIdFor(videos[2].id));
+    expect(page.continuation).toBeNull();
+  });
+
+  it('reads setVideoId from the remove menu and videoId from watchEndpoint when the shortcuts are absent', () => {
+    const model = buildLockupInitialData([SAMPLE_VIDEOS[0]], { menuOnlySetId: true, videoIdInEndpointOnly: true });
+    const v = WLC.parseBrowseResponse(model).videos[0];
+    expect(v.videoId).toBe(SAMPLE_VIDEOS[0].id);
+    expect(v.setVideoId).toBe(setVideoIdFor(SAMPLE_VIDEOS[0].id));
+  });
+
+  it('accepts playlistVideoViewModel as the same lockup shape', () => {
+    const r = WLC.parseBrowseResponse(buildLockupInitialData(SAMPLE_VIDEOS.slice(0, 2), { asViewModel: true, pageSize: 2 }));
+    expect(r.listShape).toBe('lockup');
+    expect(r.videos.map((v) => v.videoId)).toEqual([SAMPLE_VIDEOS[0].id, SAMPLE_VIDEOS[1].id]);
+    expect(r.videos[1].durationSec).toBe(SAMPLE_VIDEOS[1].duration);
+  });
+
+  it('finds lockup rows that are not wrapped in playlistVideoListRenderer', () => {
+    const json = buildLockupInitialData(SAMPLE_VIDEOS.slice(0, 2), { bare: true, pageSize: 2 });
+    const r = WLC.parseBrowseResponse(json);
+    expect(r.kind).toBe('initial');
+    expect(r.listShape).toBe('lockup');
+    expect(r.videos).toHaveLength(2);
+    expect(WLC.isWatchLaterData(json)).toBe(true);
+    expect(WLC.isWatchLaterData(buildLockupInitialData(SAMPLE_VIDEOS.slice(0, 1), { bare: true, playlistId: 'PLother' }))).toBe(false);
+  });
+
+  it('leaves an unknown browse shape empty instead of throwing', () => {
+    const json = {
+      contents: {
+        twoColumnBrowseResultsRenderer: {
+          tabs: [{ tabRenderer: { content: { richGridRenderer: { contents: [{ richItemRenderer: { content: { videoRenderer: { videoId: 'notaplaylist' } } } }] } } } }],
+        },
+      },
+    };
+    expect(WLC.parseBrowseResponse(json)).toMatchObject({ videos: [], continuation: null, kind: 'unknown', listShape: null });
+  });
+
+  it('still labels a legacy page as legacy', () => {
+    expect(WLC.parseBrowseResponse(buildInitialData(SAMPLE_VIDEOS, { pageSize: 2 })).listShape).toBe('legacy');
+    expect(WLC.parseBrowseResponse(buildMixedInitialData(SAMPLE_VIDEOS)).listShape).toBe('mixed');
   });
 });

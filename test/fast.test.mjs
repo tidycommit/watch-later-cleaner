@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadWLC, loadFixture } from './helpers.mjs';
-import { SAMPLE_VIDEOS, FAKE_YTCFG, buildInitialData, createFakeInnertube, generateVideos } from './fixtures/innertube.mjs';
+import { SAMPLE_VIDEOS, FAKE_YTCFG, buildInitialData, buildLockupInitialData, createFakeInnertube, generateVideos } from './fixtures/innertube.mjs';
 
 const WLC = loadWLC();
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -328,6 +328,24 @@ describe('settings + panel', () => {
     expect(server.state.browseCalls).toBe(calls);
   });
 
+  it('logs list shape: lockup and falls back when the browse payload is not a playlist', async () => {
+    const api = setupPage({ pageSize: 4 });
+    window.ytInitialData = buildLockupInitialData(SAMPLE_VIDEOS, { pageSize: 4 });
+    const logs = [];
+    const listed = await WLC.listVideos({ mode: 'fast', api, doc: document, loadAll: false, onLog: (e) => logs.push(e) });
+    expect(listed.mode).toBe('fast');
+    expect(listed.listShape).toBe('lockup');
+    expect(listed.videos[0].videoId).toBe(SAMPLE_VIDEOS[0].id);
+    expect(listed.videos[0].setVideoId).toBeTruthy();
+    expect(logs.some((e) => String(e.detail).includes('list shape: lockup'))).toBe(true);
+
+    const broken = setupPage({ initial: false });
+    server.handle = () => ({ status: 200, json: { contents: { twoColumnBrowseResultsRenderer: { tabs: [] } } } });
+    const fallback = await WLC.listVideos({ mode: 'fast', api: broken, doc: document, loadAll: true });
+    expect(fallback.mode).toBe('classic');
+    expect(fallback.fallbackReason).toMatch(/unexpected-browse-shape/);
+  });
+
   it('panel status says when it fell back to Classic', async () => {
     setupPage({ ytcfg: false });
     const panel = WLC.createPanel(document);
@@ -335,5 +353,110 @@ describe('settings + panel', () => {
     panel.shadow.querySelector('[data-k="loadAllFirst"]').checked = false;
     await panel.preview();
     expect(panel.shadow.querySelector('.status').textContent).toMatch(/\[Classic: Fast mode unavailable — fast mode unavailable \(ytcfg-missing\)\]/);
+  });
+
+  it('panel stores cool-down settings and shows the countdown', async () => {
+    setupPage({ pageSize: 4 });
+    const panel = WLC.createPanel(document);
+    const $ = (s) => panel.shadow.querySelector(s);
+    await panel.reloadSettings();
+    $('[data-k="coolDownEvery"]').value = '3';
+    $('[data-k="coolDownMs"]').value = '60000';
+    $('[data-k="coolDownEvery"]').dispatchEvent(new Event('change', { bubbles: true }));
+    expect(panel.state.settings).toMatchObject({ coolDownEvery: 3, coolDownMs: 60000 });
+    expect(WLC.normalizeSettings(null)).toMatchObject({ coolDownEvery: 0, coolDownMs: 0 });
+    expect(WLC.normalizeSettings({ coolDownEvery: -4, coolDownMs: 9e7 }).coolDownMs).toBe(30 * 60 * 1000);
+    const orig = WLC.removeWithFallback;
+    WLC.removeWithFallback = async (entries, opts) => {
+      expect(opts.coolDownEvery).toBe(3);
+      expect(opts.coolDownMs).toBe(60000);
+      opts.onCoolDown({ remainingMs: 45000, totalMs: 60000, reason: 'every' });
+      expect($('.status').textContent).toMatch(/Cooling down… 45s left \(every 3 removals\)/);
+      opts.onCoolDown({ remainingMs: 5000, totalMs: 60000, reason: 'api-throttled' });
+      expect($('.status').textContent).toMatch(/Cooling down… 5s left \(HTTP 429\)/);
+      return { done: 0, failed: 0, skipped: 0, total: entries.length, stopped: true, aborted: false, remaining: entries, steps: {}, log: [], modeUsed: 'fast' };
+    };
+    try {
+      panel.show();
+      await panel.preview();
+      await panel.remove();
+      await panel.remove();
+    } finally {
+      WLC.removeWithFallback = orig;
+      panel.destroy();
+    }
+  });
+});
+
+describe('periodic cool-down', () => {
+  const removed = async () => ({ ok: true, status: 'removed', step: 'api-removed' });
+
+  it('sleeps at least twice when cooling down every 3 of 7 removals', async () => {
+    const videos = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((id) => ({ videoId: id, title: id }));
+    const waits = [];
+    const stats = await WLC.removeVideos(videos, {
+      doc: document,
+      delayMs: 1000,
+      maxDelayMs: 8000,
+      jitterMs: 0,
+      maxAttempts: 1,
+      coolDownEvery: 3,
+      coolDownMs: 2500,
+      coolDownSliceMs: 2500,
+      sleep: async (ms) => waits.push(ms),
+      attempt: removed,
+    });
+    expect(stats).toMatchObject({ done: 7, failed: 0, stopped: false });
+    expect(stats.coolDowns).toBeGreaterThanOrEqual(2);
+    expect(waits.filter((ms) => ms === 2500).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('records api-throttled, doubles the delay, and takes one cool-down sleep', async () => {
+    let n = 0;
+    const waits = [];
+    const stats = await WLC.removeVideos([{ videoId: 'a' }, { videoId: 'b' }], {
+      doc: document,
+      delayMs: 1000,
+      maxDelayMs: 8000,
+      jitterMs: 0,
+      maxAttempts: 2,
+      coolDownEvery: 0,
+      coolDownMs: 5000,
+      coolDownSliceMs: 5000,
+      sleep: async (ms) => waits.push(ms),
+      attempt: async () => {
+        n++;
+        if (n === 1) return { ok: false, status: 'failed', step: 'api-throttled', retryable: true, detail: 'HTTP 429' };
+        return { ok: true, status: 'removed', step: 'api-removed' };
+      },
+    });
+    expect(stats.log[0]).toMatchObject({ step: 'api-throttled', ok: false });
+    expect(stats.done).toBe(2);
+    expect(stats.coolDowns).toBeGreaterThanOrEqual(1);
+    expect(waits).toContain(5000);
+    expect(waits[waits.length - 1]).toBe(2000);
+  });
+
+  it('stops during a cool-down and Resume continues the rest', async () => {
+    const videos = ['a', 'b', 'c', 'd'].map((id) => ({ videoId: id, title: id }));
+    let stop = false;
+    const base = {
+      doc: document,
+      delayMs: 10,
+      maxDelayMs: 40,
+      jitterMs: 0,
+      maxAttempts: 1,
+      coolDownEvery: 1,
+      coolDownMs: 5000,
+      coolDownSliceMs: 5000,
+      sleep: async () => {},
+      attempt: removed,
+    };
+    const paused = await WLC.removeVideos(videos, Object.assign({}, base, { shouldStop: () => stop, onCoolDown: () => { stop = true; } }));
+    expect(paused.stopped).toBe(true);
+    expect(paused.done).toBe(1);
+    expect(paused.remaining.map((v) => v.videoId)).toEqual(['b', 'c', 'd']);
+    const resumed = await WLC.removeVideos(paused.remaining, Object.assign({}, base, { coolDownEvery: 0, coolDownMs: 0 }));
+    expect(resumed).toMatchObject({ done: 3, failed: 0, stopped: false, remaining: [] });
   });
 });
