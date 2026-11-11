@@ -1,0 +1,78 @@
+# Lint, unit tests, and build on every push and pull request.
+# The e2e job is optional: it runs only when Chrome can be installed, talks to local
+# fixtures only (request interception blocks every other host), and never contacts YouTube.
+# No secrets, no store signing, no uploaded artifacts.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-test-build:
+    name: lint, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  e2e:
+    name: e2e (optional, fixtures only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install Chrome if possible
+        id: chrome
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          if command -v google-chrome >/dev/null 2>&1; then
+            echo "path=$(command -v google-chrome)" >> "$GITHUB_OUTPUT"
+            google-chrome --version
+            exit 0
+          fi
+          if command -v google-chrome-stable >/dev/null 2>&1; then
+            echo "path=$(command -v google-chrome-stable)" >> "$GITHUB_OUTPUT"
+            google-chrome-stable --version
+            exit 0
+          fi
+          if command -v chromium >/dev/null 2>&1; then
+            echo "path=$(command -v chromium)" >> "$GITHUB_OUTPUT"
+            chromium --version
+            exit 0
+          fi
+          if command -v chromium-browser >/dev/null 2>&1; then
+            echo "path=$(command -v chromium-browser)" >> "$GITHUB_OUTPUT"
+            chromium-browser --version
+            exit 0
+          fi
+          wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get update
+          sudo apt-get install -y /tmp/chrome.deb
+          echo "path=$(command -v google-chrome)" >> "$GITHUB_OUTPUT"
+          google-chrome --version
+      - name: End-to-end against local fixtures (never live YouTube)
+        if: steps.chrome.outcome == 'success'
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.path }}
+        run: npm run e2e
+      - name: Chrome unavailable — skip e2e
+        if: steps.chrome.outcome != 'success'
+        run: echo "Chrome could not be installed on this runner. e2e skipped. This job is optional and does not contact YouTube."
