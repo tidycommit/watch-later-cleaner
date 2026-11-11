@@ -1,0 +1,99 @@
+{
+  "contents": {
+    "twoColumnBrowseResultsRenderer": {
+      "tabs": [
+        {
+          "tabRenderer": {
+            "selected": true,
+            "content": {
+              "sectionListRenderer": {
+                "contents": [
+                  {
+                    "itemSectionRenderer": {
+                      "contents": [
+                        {
+                          "playlistVideoListRenderer": {
+                            "playlistId": "WL",
+                            "contents": [
+                              {
+                                "lockupViewModel": {
+                                  "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+                                  "contentId": "lockupVid01",
+                                  "playlistItemData": { "setVideoId": "SETLOCKUP0000001" },
+                                  "metadata": {
+                                    "lockupMetadataViewModel": {
+                                      "title": { "content": "Lockup one" },
+                                      "metadata": {
+                                        "contentMetadataViewModel": {
+                                          "metadataRows": [
+                                            { "metadataParts": [{ "text": { "content": "Lockup Channel" } }] },
+                                            { "metadataParts": [{ "text": { "content": "1.2M views" } }, { "text": { "content": "2 years ago" } }] }
+                                          ]
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "contentImage": {
+                                    "thumbnailViewModel": {
+                                      "overlays": [
+                                        { "thumbnailOverlayBadgeViewModel": { "thumbnailBadges": [{ "thumbnailBadgeViewModel": { "text": "10:00" } }] } },
+                                        { "thumbnailBottomOverlayViewModel": { "progressBar": { "thumbnailOverlayProgressBarViewModel": { "startPercent": 80 } } } }
+                                      ]
+                                    }
+                                  },
+                                  "rendererContext": {
+                                    "accessibilityContext": { "label": "Lockup one by Lockup Channel 2 years ago" },
+                                    "commandContext": { "onTap": { "innertubeCommand": { "watchEndpoint": { "videoId": "lockupVid01", "playlistId": "WL" } } } }
+                                  }
+                                }
+                              },
+                              {
+                                "lockupViewModel": {
+                                  "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+                                  "contentId": "lockupVid02",
+                                  "isPlayable": false,
+                                  "metadata": {
+                                    "lockupMetadataViewModel": {
+                                      "title": { "content": "[Deleted video]" },
+                                      "metadata": { "contentMetadataViewModel": { "metadataRows": [] } }
+                                    }
+                                  },
+                                  "menu": {
+                                    "menuRenderer": {
+                                      "items": [
+                                        {
+                                          "menuServiceItemRenderer": {
+                                            "serviceEndpoint": {
+                                              "playlistEditEndpoint": {
+                                                "playlistId": "WL",
+                                                "actions": [{ "action": "ACTION_REMOVE_VIDEO", "setVideoId": "SETLOCKUP0000002" }]
+                                              }
+                                            }
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "continuationItemRenderer": {
+                                  "continuationEndpoint": { "continuationCommand": { "token": "lockup-next", "request": "CONTINUATION_REQUEST_TYPE_BROWSE" } }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "header": { "playlistHeaderRenderer": { "playlistId": "WL", "title": { "simpleText": "Watch later" } } }
+}

@@ -228,6 +228,166 @@
     return out.map((s) => String(s).trim()).filter(Boolean);
   }
 
+  function lockupTitle(r) {
+    const meta = (r.metadata && (r.metadata.lockupMetadataViewModel || r.metadata)) || {};
+    return textOf(meta.title) || textOf(r.title);
+  }
+
+  function lockupRows(r) {
+    const meta = (r.metadata && (r.metadata.lockupMetadataViewModel || r.metadata)) || {};
+    const cm = (meta.metadata && (meta.metadata.contentMetadataViewModel || meta.metadata)) || {};
+    const rows = [];
+    for (const row of cm.metadataRows || []) {
+      const parts = [];
+      for (const part of row.metadataParts || []) {
+        const t = textOf(part && part.text) || textOf(part);
+        if (t) parts.push(t);
+      }
+      if (parts.length) rows.push(parts);
+    }
+    return rows;
+  }
+
+  function lockupChannel(r, rows) {
+    const byline = textOf(r.shortBylineText);
+    if (byline) return byline;
+    const first = (rows[0] && rows[0][0]) || '';
+    if (!first) return '';
+    if (/\bviews?\b|시청|회$|次观看|次觀看|watching/i.test(first)) return '';
+    if (/^\d{1,3}(?::[0-5]\d){1,2}$/.test(first.trim())) return '';
+    return first;
+  }
+
+  function walkObjects(node, fn, maxDepth) {
+    const visit = (n, depth) => {
+      if (!n || typeof n !== 'object' || depth > maxDepth) return;
+      if (fn(n) === true) return;
+      const list = Array.isArray(n) ? n : Object.keys(n).map((k) => n[k]);
+      for (const v of list) if (v && typeof v === 'object') visit(v, depth + 1);
+    };
+    visit(node, 0);
+  }
+
+  function collectBadgeTexts(node) {
+    const out = [];
+    walkObjects(
+      node,
+      (n) => {
+        if (!n.thumbnailBadgeViewModel || n.thumbnailBadgeViewModel.text == null) return;
+        const raw = n.thumbnailBadgeViewModel.text;
+        const t = typeof raw === 'string' ? raw : textOf(raw);
+        if (t) out.push(t);
+      },
+      8
+    );
+    return out;
+  }
+
+  function lockupProgress(r) {
+    const fromOverlays = resumePercent(r);
+    if (fromOverlays) return fromOverlays;
+    let pct = null;
+    walkObjects(
+      r,
+      (n) => {
+        const bar = n.thumbnailOverlayProgressBarViewModel;
+        if (bar && bar.startPercent != null && pct == null) pct = Number(bar.startPercent);
+      },
+      8
+    );
+    if (pct == null || !Number.isFinite(pct)) return 0;
+    return Math.max(0, Math.min(100, pct));
+  }
+
+  function setVideoIdFromEndpoint(ep) {
+    const actions = ep && ep.playlistEditEndpoint && ep.playlistEditEndpoint.actions;
+    if (!Array.isArray(actions)) return null;
+    const hit = actions.find((a) => a && a.setVideoId && (!a.action || a.action === 'ACTION_REMOVE_VIDEO'));
+    return hit ? hit.setVideoId : null;
+  }
+
+  function lockupSetVideoId(r) {
+    if (r.setVideoId) return r.setVideoId;
+    if (r.playlistItemData && r.playlistItemData.setVideoId) return r.playlistItemData.setVideoId;
+    const fromMenu = setVideoIdFromMenu(r);
+    if (fromMenu) return fromMenu;
+    let found = null;
+    walkObjects(
+      r,
+      (n) => {
+        if (found) return;
+        const id = setVideoIdFromEndpoint(n);
+        if (id) found = id;
+      },
+      8
+    );
+    return found;
+  }
+
+  function lockupVideoId(r) {
+    const type = String(r.contentType || '');
+    if (r.videoId && /^[\w-]{6,}$/.test(r.videoId)) return r.videoId;
+    if (r.contentId && /^[\w-]{6,}$/.test(r.contentId) && (!type || /VIDEO/.test(type))) return r.contentId;
+    let found = null;
+    walkObjects(
+      r,
+      (n) => {
+        if (!found && n.watchEndpoint && n.watchEndpoint.videoId) found = n.watchEndpoint.videoId;
+      },
+      8
+    );
+    return found;
+  }
+
+  function lockupA11y(r) {
+    const ctx = r.rendererContext && r.rendererContext.accessibilityContext;
+    if (ctx && ctx.label) return String(ctx.label);
+    const meta = r.metadata && r.metadata.lockupMetadataViewModel;
+    const title = meta && meta.title;
+    const label = title && title.accessibility && title.accessibility.accessibilityData && title.accessibility.accessibilityData.label;
+    return label || '';
+  }
+
+  function lockupDuration(r) {
+    const lengthSeconds = r.lengthSeconds != null && r.lengthSeconds !== '' ? parseInt(r.lengthSeconds, 10) : null;
+    const badges = collectBadgeTexts(r);
+    const text = durationTextOf(r) || badges.find((t) => /\d{1,3}(?::[0-5]\d){1,2}/.test(t)) || '';
+    let sec = Number.isFinite(lengthSeconds) ? lengthSeconds : null;
+    if (sec == null && text && typeof WLC.parseDuration === 'function') sec = WLC.parseDuration(text);
+    return { sec, text };
+  }
+
+  /**
+   * lockupViewModel / playlistVideoViewModel → the same raw fields as parsePlaylistVideoRenderer.
+   * YouTube has been replacing playlist rows with these view models; both shapes stay supported.
+   */
+  function parseLockupViewModel(r, index) {
+    const title = lockupTitle(r);
+    const rows = lockupRows(r);
+    const channel = lockupChannel(r, rows);
+    const ages = ageCandidates(r);
+    for (const row of rows) ages.push(...row);
+    const duration = lockupDuration(r);
+    const badges = collectBadgeTexts(r).join(' ');
+    const bracketed = /^\[.+\]$/.test(String(title || '').trim());
+    const deadBadge = /unavailable|private video|deleted video/i.test(badges);
+    return {
+      index: typeof index === 'number' ? index : null,
+      position: textOf(r.index),
+      videoId: lockupVideoId(r),
+      setVideoId: lockupSetVideoId(r),
+      title,
+      channel,
+      progress: lockupProgress(r),
+      durationSec: duration.sec,
+      durationText: duration.text,
+      ageCandidates: ages.map((s) => String(s).trim()).filter(Boolean),
+      accessibilityLabel: lockupA11y(r),
+      isPlayable: r.isPlayable !== false && !deadBadge,
+      unavailable: (bracketed && !channel) || (r.isPlayable === false && !channel) || (deadBadge && !channel),
+    };
+  }
+
   /**
    * One playlistVideoRenderer → the raw fields the filters need (same shape as parse.js parseItem,
    * minus ageDays, which the isolated world adds with WLC.parseAge).
@@ -255,23 +415,31 @@
     };
   }
 
+  function isPlaylistItemArray(arr) {
+    return Array.isArray(arr) && arr.some((it) => it && (it.playlistVideoRenderer || it.lockupViewModel || it.playlistVideoViewModel));
+  }
+
   function playlistContents(node) {
-    // ytInitialData / browse(VLWL): tabs → sectionList → itemSection → playlistVideoListRenderer.contents
+    // ytInitialData / browse(VLWL): tabs → sectionList → itemSection → playlistVideoListRenderer.contents.
+    // Newer clients put lockupViewModel rows in that list, or directly in the section contents.
     const out = { items: null, playlistId: null };
+    let fallback = null;
     const visit = (n, depth) => {
-      if (!n || typeof n !== 'object' || out.items || depth > 14) return;
+      if (!n || typeof n !== 'object' || out.items || depth > 18) return;
       if (n.playlistVideoListRenderer && Array.isArray(n.playlistVideoListRenderer.contents)) {
         out.items = n.playlistVideoListRenderer.contents;
         out.playlistId = n.playlistVideoListRenderer.playlistId || null;
         return;
       }
-      for (const k of Object.keys(n)) {
-        const v = n[k];
+      if (!fallback && isPlaylistItemArray(n)) fallback = n;
+      const children = Array.isArray(n) ? n : Object.keys(n).map((k) => n[k]);
+      for (const v of children) {
         if (v && typeof v === 'object') visit(v, depth + 1);
         if (out.items) return;
       }
     };
     visit(node && node.contents, 0);
+    if (!out.items && fallback) out.items = fallback;
     return out;
   }
 
@@ -312,11 +480,26 @@
     }
     const videos = [];
     let continuation = null;
+    let sawLegacy = false;
+    let sawLockup = false;
     for (const it of items || []) {
-      if (it.playlistVideoRenderer) videos.push(parsePlaylistVideoRenderer(it.playlistVideoRenderer, startIndex + videos.length));
-      else if (it.continuationItemRenderer) continuation = continuationToken(it) || continuation;
+      let parsed = null;
+      let shape = null;
+      if (it.playlistVideoRenderer) {
+        parsed = parsePlaylistVideoRenderer(it.playlistVideoRenderer, startIndex + videos.length);
+        shape = 'legacy';
+      } else if (it.lockupViewModel || it.playlistVideoViewModel) {
+        parsed = parseLockupViewModel(it.lockupViewModel || it.playlistVideoViewModel, startIndex + videos.length);
+        shape = 'lockup';
+      } else if (it.continuationItemRenderer) continuation = continuationToken(it) || continuation;
+      if (parsed) {
+        videos.push(parsed);
+        if (shape === 'lockup') sawLockup = true;
+        else sawLegacy = true;
+      }
     }
-    return { videos, continuation, playlistId, kind };
+    const listShape = sawLockup && sawLegacy ? 'mixed' : sawLockup ? 'lockup' : sawLegacy ? 'legacy' : null;
+    return { videos, continuation, playlistId, kind, listShape };
   }
 
   /** True if a ytInitialData-like object is the Watch Later playlist page. */
@@ -365,6 +548,7 @@
     textOf,
     continuationToken,
     parsePlaylistVideoRenderer,
+    parseLockupViewModel,
     parseBrowseResponse,
     isWatchLaterData,
     interpretEditResponse,

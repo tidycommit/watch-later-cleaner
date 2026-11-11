@@ -155,7 +155,13 @@
   function findItemByVideoId(doc, videoId) {
     if (!videoId) return null;
     const root = (WLC.activePlaylistRoot && WLC.activePlaylistRoot(doc)) || doc || document;
-    const links = root.querySelectorAll(`${WLC.SELECTORS.item} a[href*="v=${videoId}"]`);
+    // SELECTORS.item is a comma list. A descendant combinator has to be applied to each part,
+    // otherwise "a, b c" matches every `a` plus `b c`.
+    const sel = WLC.SELECTORS.item
+      .split(',')
+      .map((part) => `${part.trim()} a[href*="v=${videoId}"]`)
+      .join(', ');
+    const links = root.querySelectorAll(sel);
     for (const a of links) {
       if (WLC.getVideoId(a.getAttribute('href')) === videoId) {
         const item = a.closest(WLC.SELECTORS.item);
@@ -366,10 +372,13 @@
     const maxAttempts = opts.maxAttempts || 3;
     const maxConsecutive = opts.maxConsecutiveFailures || 8;
     const fallbackAfter = opts.fallbackAfter || 0;
+    const coolEvery = Math.max(0, opts.coolDownEvery || 0);
+    const coolMs = Math.max(0, opts.coolDownMs || 0);
+    const coolSlice = Math.max(1, opts.coolDownSliceMs == null ? 1000 : opts.coolDownSliceMs);
     const queue = videos.map(toPlanEntry);
     const stats = {
       done: 0, failed: 0, skipped: 0, total: queue.length, stopped: false, aborted: false, fallback: false,
-      remaining: [], failures: [], steps: {}, log: [], errors: [],
+      remaining: [], failures: [], steps: {}, log: [], errors: [], coolDowns: 0,
     };
     const failedVideos = [];
     let delay = baseDelay;
@@ -381,6 +390,22 @@
       if (opts.onLog) opts.onLog(e);
     };
 
+    async function runCoolDown(reason) {
+      stats.coolDowns++;
+      log({ event: 'cooldown', detail: `${reason} ${coolMs}ms`, ok: true, step: reason });
+      let left = coolMs;
+      while (left > 0) {
+        if (shouldStop()) return false;
+        if (opts.onCoolDown) opts.onCoolDown({ remainingMs: left, totalMs: coolMs, reason });
+        if (shouldStop()) return false;
+        const step = Math.min(coolSlice, left);
+        await wait(step);
+        left -= step;
+      }
+      if (opts.onCoolDown) opts.onCoolDown({ remainingMs: 0, totalMs: coolMs, reason, done: true });
+      return true;
+    }
+
     for (; i < queue.length; i++) {
       if (shouldStop()) {
         stats.stopped = true;
@@ -388,9 +413,11 @@
       }
       const video = queue[i];
       let r = null;
+      let throttled = false;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         r = await attemptFn(video);
         log({ videoId: video.videoId, title: video.title, attempt, step: r.step, ok: r.ok, detail: r.detail || r.method || '' });
+        if (r && r.step === 'api-throttled') throttled = true;
         if (r.ok || r.status === 'gone' || r.retryable === false || shouldStop()) break;
         if (cleanup) await cleanup(doc);
         await wait(Math.min(maxDelay, delay * 2 ** attempt)); // backoff before retrying the same video
@@ -398,7 +425,8 @@
       if (r.ok) {
         stats.done++;
         consecutive = 0;
-        delay = Math.max(baseDelay, Math.round(delay * 0.8));
+        // A 429 on the way to success still means YouTube is throttling — slow the next gap instead of decaying it.
+        delay = throttled ? Math.min(maxDelay, delay * 2) : Math.max(baseDelay, Math.round(delay * 0.8));
         if (opts.onRemoved) opts.onRemoved(video, r);
       } else if (r.status === 'gone') {
         stats.skipped++;
@@ -422,7 +450,19 @@
         i++;
         break;
       }
-      if (i < queue.length - 1) await wait(delay + (jitter ? Math.round(random() * jitter) : 0));
+      const more = i < queue.length - 1;
+      let coolReason = null;
+      if (more && coolMs > 0 && throttled) coolReason = 'api-throttled';
+      else if (more && coolMs > 0 && coolEvery > 0 && r.ok && stats.done > 0 && stats.done % coolEvery === 0) coolReason = 'every';
+      if (coolReason) {
+        const cont = await runCoolDown(coolReason);
+        if (!cont) {
+          stats.stopped = true;
+          i++;
+          break;
+        }
+      }
+      if (more) await wait(delay + (jitter ? Math.round(random() * jitter) : 0));
     }
     stats.remaining = failedVideos.concat(queue.slice(i));
     return stats;
