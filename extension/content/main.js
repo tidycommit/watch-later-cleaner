@@ -8,12 +8,7 @@
   let panel = null;
 
   function sync() {
-    if (WLC.isWatchLaterUrl(location.href)) {
-      if (!panel) panel = WLC.createPanel(document);
-    } else if (panel) {
-      panel.destroy();
-      panel = null;
-    }
+    panel = WLC.syncWatchLaterPanel(document, location.href);
   }
 
   sync();

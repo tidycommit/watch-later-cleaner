@@ -125,7 +125,7 @@ try {
   const matchedTitles = ageRows.filter((r) => !r.kept).map((r) => r.title);
   check(
     JSON.stringify(matchedTitles) ===
-      JSON.stringify(['Classic one year', 'Metadata line stream', 'What changed 2 years ago', 'Nbsp spaces', 'Abbreviated', 'A year']),
+      JSON.stringify(['Classic one year', 'Metadata line stream', 'What changed 2 years ago', 'Nbsp spaces', 'Abbreviated', 'A year', 'Korean three years', 'Japanese two years']),
     'age filter (>= 12 months) matches all markup variants incl. "1 year ago"'
   );
   check(ageRows.some((r) => r.kept && r.title === 'No age shown' && /age unknown/.test(r.meta)), 'unknown age is kept and labelled "age unknown"');

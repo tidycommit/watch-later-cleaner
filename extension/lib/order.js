@@ -45,10 +45,21 @@
    * Detect the playlist's active sort from the page.
    * Returns { kind: 'added'|'published'|'popular'|'unknown', direction: 'newest'|'oldest'|null, text, source }.
    */
+  /** Skip the miniplayer and any ytd-browse that is not the active playlist page. */
+  function inActivePlaylist(el, doc) {
+    if (!el) return false;
+    if (el.closest && el.closest('ytd-miniplayer')) return false;
+    const root = WLC.activePlaylistRoot && WLC.activePlaylistRoot(doc || (el.ownerDocument || document));
+    if (!root) return true;
+    const browse = el.closest && el.closest('ytd-browse');
+    return !browse || browse === root;
+  }
+
   function detectSort(doc) {
     const d = doc || document;
     for (const sel of SORT_SELECTED_SELECTORS) {
       for (const el of d.querySelectorAll(sel)) {
+        if (!inActivePlaylist(el, d)) continue;
         if (el.closest && el.closest(WLC.SELECTORS.item)) continue;
         const c = classifySort(el.textContent);
         if (c && (c.kind !== 'added' || c.direction)) return Object.assign(c, { source: sel });
@@ -89,6 +100,7 @@
     ];
     for (const sel of sels) {
       for (const el of d.querySelectorAll(sel)) {
+        if (!inActivePlaylist(el, d)) continue;
         if (el.closest(WLC.SELECTORS.item)) continue;
         const m = WLC.cleanText(el.textContent).match(/([\d][\d,.\s]*)\s*(videos?|동영상|Videos|vidéos|vídeos|video)/i);
         if (m) return parseInt(m[1].replace(/[^\d]/g, ''), 10);

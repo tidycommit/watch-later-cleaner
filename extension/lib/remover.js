@@ -154,13 +154,14 @@
    */
   function findItemByVideoId(doc, videoId) {
     if (!videoId) return null;
+    const root = (WLC.activePlaylistRoot && WLC.activePlaylistRoot(doc)) || doc || document;
     // SELECTORS.item is a comma list. A descendant combinator has to be applied to each part,
     // otherwise "a, b c" matches every `a` plus `b c`.
     const sel = WLC.SELECTORS.item
       .split(',')
       .map((part) => `${part.trim()} a[href*="v=${videoId}"]`)
       .join(', ');
-    const links = (doc || document).querySelectorAll(sel);
+    const links = root.querySelectorAll(sel);
     for (const a of links) {
       if (WLC.getVideoId(a.getAttribute('href')) === videoId) {
         const item = a.closest(WLC.SELECTORS.item);
@@ -293,7 +294,8 @@
     for (let round = 0; round < maxRounds && !shouldStop(); round++) {
       const items = WLC.getItems(doc);
       if (opts.onProgress) opts.onProgress(items.length);
-      const cont = doc.querySelector(WLC.SELECTORS.continuation);
+      const root = (WLC.activePlaylistRoot && WLC.activePlaylistRoot(doc)) || doc;
+      const cont = root.querySelector(WLC.SELECTORS.continuation);
       if (items.length === last && !cont) {
         if (++stable >= 2) break;
       } else if (items.length === last) {
