@@ -32,7 +32,26 @@
       <input type="text" name="channelKeywords" placeholder="comma-separated" />
       <label><input type="checkbox" name="titleFilter" /> Title contains</label>
       <input type="text" name="titleKeywords" placeholder="comma-separated" />
+      <label title="60 seconds or shorter. Videos with no duration are never matched."><input type="checkbox" name="shorts" /> Shorts (≤ 60s)</label>
+      <label title="Inclusive. Videos with no duration are never matched."
+        ><input type="checkbox" name="durationFilter" /> Duration
+        <select name="durationCmp">
+          <option value="shorter">shorter than</option>
+          <option value="longer">longer than</option>
+        </select>
+        <input type="number" name="durationValue" min="1" step="1" />
+        <select name="durationUnit">
+          <option value="minutes">minutes</option>
+          <option value="seconds">seconds</option>
+        </select></label
+      >
+      <label title="Later copies of the same video. The first one in the list is kept."><input type="checkbox" name="duplicates" /> Duplicates (keep first)</label>
       <label class="danger"><input type="checkbox" name="removeAll" /> Remove ALL videos</label>
+      <h2>Always keep</h2>
+      <label>Channel contains</label>
+      <input type="text" name="keepChannels" placeholder="never removed, comma-separated" />
+      <label>Title contains</label>
+      <input type="text" name="keepTitles" placeholder="never removed, comma-separated" />
       <h2>Options</h2>
       <label title="Fast uses YouTube's own web requests and keeps working in a background tab; Classic clicks each row's menu."
         >Mode

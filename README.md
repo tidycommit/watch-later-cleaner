@@ -22,6 +22,11 @@ with a dry-run preview before anything is removed.
   See [How the age filter works](#how-the-age-filter-works). Videos whose age can't be read are never matched.
 - **Remove unavailable videos** — `[Deleted video]`, `[Private video]` and similar bracketed entries with no channel.
 - **Channel / title keyword filters** — comma-separated, case-insensitive "contains" matching.
+- **Duration and Shorts** — remove videos **shorter or longer** than a length (minutes or seconds, inclusive), and/or **Shorts (≤ 60s)**.
+  Live and upcoming videos have no duration and are never matched. Preview reasons look like `duration 0:45 ≤ 1:00 (Shorts)`.
+- **Duplicates (keep first)** — when the same video id appears more than once, later copies match with reason `duplicate of earlier #N` (playlist order). The first copy stays.
+- **Always keep** — a separate channel/title allowlist, saved with the other settings. A match is left out of the removal plan even if every other criterion hits.
+  The preview says `kept: allowlisted channel "…"` (or title) and Preview analytics notes how many matches were excluded. An empty allowlist changes nothing.
 - **Added order** — YouTube doesn't show *when* you added a video, but Watch Later can be sorted by **Date added**.
   With that sort active, the extension ranks videos by add order (added #1 = oldest) and offers:
   **Oldest N added**, **Below position #X**, or **Positions #X–#Y** (positions as shown in the list; `0` = to the end).

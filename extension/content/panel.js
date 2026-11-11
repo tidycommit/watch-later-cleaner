@@ -116,6 +116,12 @@
             <input type="text" data-k="channelKeywords" placeholder="comma-separated"></div>
           <div class="row"><label><input type="checkbox" data-k="titleFilter"> Title contains</label>
             <input type="text" data-k="titleKeywords" placeholder="comma-separated"></div>
+          <div class="row"><label title="60 seconds or shorter. Live and upcoming videos have no duration and are never matched."><input type="checkbox" data-k="shorts"> Shorts (≤ 60s)</label></div>
+          <div class="row"><label title="Inclusive. Videos with no duration are never matched."><input type="checkbox" data-k="durationFilter"> Duration</label>
+            <select data-k="durationCmp"><option value="shorter">shorter than</option><option value="longer">longer than</option></select>
+            <input type="number" min="1" step="1" data-k="durationValue">
+            <select data-k="durationUnit"><option value="minutes">minutes</option><option value="seconds">seconds</option></select></div>
+          <div class="row"><label title="Later copies of the same video. The first one in the loaded list is kept."><input type="checkbox" data-k="duplicates"> Duplicates (keep first)</label></div>
           <div class="row added-row"><label title="Uses the playlist's Date added sort (YouTube doesn't show the added date itself)."><input type="checkbox" data-k="addedOrder"> Added order</label>
             <select data-k="addedMode"><option value="oldestN">Oldest N added</option><option value="below">Below position #</option><option value="range">Positions #…#</option></select>
             <span class="am am-n"><input type="number" min="1" step="1" data-k="addedN" title="N"></span>
@@ -124,6 +130,12 @@
           <div class="row sort-row hint"><span class="sort-note"></span>
             <select data-k="addedSortOverride" title="Only if the sort can't be detected (e.g. other UI languages)"><option value="auto">detect sort</option><option value="newest">list is newest-added first</option><option value="oldest">list is oldest-added first</option></select></div>
           <div class="row danger"><label><input type="checkbox" data-k="removeAll"> Remove ALL videos</label></div>
+        </fieldset>
+        <fieldset><legend>Always keep</legend>
+          <div class="row"><label title="Never removed, even when another criterion matches. Leave blank for no allowlist.">Channel contains</label>
+            <input type="text" data-k="keepChannels" placeholder="comma-separated"></div>
+          <div class="row"><label title="Never removed, even when another criterion matches.">Title contains</label>
+            <input type="text" data-k="keepTitles" placeholder="comma-separated"></div>
         </fieldset>
         <fieldset><legend>Options</legend>
           <div class="row mode-row"><label for="wlc-mode">Mode</label>
@@ -355,6 +367,9 @@
       const range = ps.addedRange
         ? `<div class="note">Added rank range: #${num(ps.addedRange.min)}–#${num(ps.addedRange.max)}${ps.addedRange.total ? ` of ${num(ps.addedRange.total)}` : ''} (oldest = 1)</div>`
         : '';
+      const allowNote = state.plan && state.plan.excludedByAllowlist
+        ? `<div class="note allow-note">Excluded by allowlist: ${num(state.plan.excludedByAllowlist)}</div>`
+        : '';
       pvOut.innerHTML = `
         <div class="cards">
           ${card(`${num(ps.count)} / ${num(ps.total)}`, `selected · ${Math.round(ps.pct * 100)}% of playlist`)}
@@ -365,6 +380,7 @@
         </div>
         <div class="ba">${ba('Videos', ps.before.videos, ps.after.videos, num)}${ba('Hours', ps.before.durationSec, ps.after.durationSec, H)}</div>
         ${range}
+        ${allowNote}
         <div class="a-grid">
           <div class="sec"><h4>Matched by criterion</h4>${bars(crit)}${overlap}</div>
           <div class="sec"><h4>Watch progress</h4>${bars([
@@ -482,6 +498,7 @@
           addedNote = ` Header says ${headerCount.toLocaleString('en-US')} videos, ${videos.length.toLocaleString('en-US')} listed (hidden unavailable videos aren't ranked).`;
         }
         if (s.matchMode === 'all') addedNote += ' Match: all ticked criteria.';
+        if (plan.excludedByAllowlist) addedNote += ` ${plan.excludedByAllowlist} matched but kept by the allowlist.`;
         const shapeNote = listed.listShape === 'lockup' || listed.listShape === 'mixed' ? ', list shape: lockup' : '';
         const modeNote = listed.fallbackReason ? ` [Classic: Fast mode unavailable — ${listed.fallbackReason}]` : ` [${modeLabel(listed.mode)}${shapeNote}]`;
         setStatus(
