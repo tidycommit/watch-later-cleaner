@@ -47,8 +47,9 @@ with a dry-run preview before anything is removed.
   automatic fallback when Fast can't run.
 - Both modes remove one video at a time with a configurable delay (default **400 ms**; Fast adds 0–200 ms of jitter), a progress
   bar/counter and a **Stop** button. Built for long lists (thousands of items). Optional **cool-down** (off by default):
-  after every N successful removals, and after an HTTP 429 (`api-throttled`), the run pauses for a chosen number of milliseconds
-  and shows a countdown. **Stop** during that pause ends the run; **Resume** continues with whatever is left. Classic specifics:
+  after every N successful removals the run pauses for a chosen number of milliseconds and shows a countdown.
+  An HTTP 429 (`api-throttled`) always pauses for at least **15 seconds**, or for the chosen cool-down when that is longer,
+  even if the periodic cool-down is off. The pause is sliced so **Stop** works during it; **Resume** continues with whatever is left. Classic specifics:
   - the removal plan is a list of **video IDs**; each video is located fresh by ID right before acting and success is verified by
     that ID disappearing (YouTube re-uses row elements after removals, so element references can't be trusted),
     with YouTube's "Removed from Watch later" toast as a second confirmation;

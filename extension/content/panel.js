@@ -144,7 +144,7 @@
           <div class="row"><label><input type="checkbox" data-k="loadAllFirst"> Load all videos first (Classic: auto-scroll)</label></div>
           <div class="row"><label><input type="checkbox" data-k="showKept"> Preview: also list kept videos (with parsed age)</label></div>
           <div class="row">Delay between removals <input type="number" min="100" step="50" data-k="delayMs"> ms</div>
-          <div class="row" title="Optional. After every N successful removals, and after an HTTP 429, wait this long. 0 on either field turns the pause off.">Cool down every <input type="number" min="0" step="1" data-k="coolDownEvery"> removals for <input type="number" min="0" step="1000" data-k="coolDownMs"> ms</div>
+          <div class="row" title="Optional pause after every N successful removals. 0 turns that periodic pause off. An HTTP 429 always pauses for at least 15 seconds, or for this cool-down if it is longer. Stop works during the pause.">Cool down every <input type="number" min="0" step="1" data-k="coolDownEvery"> removals for <input type="number" min="0" step="1000" data-k="coolDownMs"> ms</div>
         </fieldset>
         <div class="actions">
           <button class="btn-preview">Preview (dry run)</button>

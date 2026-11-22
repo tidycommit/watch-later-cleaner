@@ -355,6 +355,39 @@ describe('settings + panel', () => {
     expect(panel.shadow.querySelector('.status').textContent).toMatch(/\[Classic: Fast mode unavailable — fast mode unavailable \(ytcfg-missing\)\]/);
   });
 
+  it('panel status shows the built-in 15s HTTP 429 pause at the default cool-down', async () => {
+    setupPage({ pageSize: 4 });
+    const inner = server.handle.bind(server);
+    let edits = 0;
+    server.handle = (req) => {
+      if (/edit_playlist/.test(req.url)) {
+        edits++;
+        if (edits === 1) return { status: 429, json: { error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'Too many' } } };
+      }
+      return inner(req);
+    };
+    const panel = WLC.createPanel(document);
+    const $ = (s) => panel.shadow.querySelector(s);
+    await panel.reloadSettings();
+    expect(panel.state.settings).toMatchObject({ coolDownEvery: 0, coolDownMs: 0, delayMs: 400 });
+    const seen = [];
+    const orig = WLC.sleep;
+    WLC.sleep = async () => {
+      seen.push($('.status').textContent);
+    };
+    try {
+      panel.show();
+      await panel.preview();
+      await panel.remove();
+      await panel.remove();
+    } finally {
+      WLC.sleep = orig;
+      panel.destroy();
+    }
+    expect(seen.some((text) => /Cooling down… 15s left \(HTTP 429\)/.test(text))).toBe(true);
+    expect($('.status').textContent).toMatch(/^Done: removed 4 of 4\. \[Fast\]/);
+  });
+
   it('panel stores cool-down settings and shows the countdown', async () => {
     setupPage({ pageSize: 4 });
     const panel = WLC.createPanel(document);
@@ -432,9 +465,81 @@ describe('periodic cool-down', () => {
     });
     expect(stats.log[0]).toMatchObject({ step: 'api-throttled', ok: false });
     expect(stats.done).toBe(2);
-    expect(stats.coolDowns).toBeGreaterThanOrEqual(1);
-    expect(waits).toContain(5000);
+    expect(stats.coolDowns).toBe(1);
+    // Configured 5s is below the 15s floor, so the pause is three 5s slices, not a single 5s sleep.
+    expect(waits.filter((ms) => ms === 5000)).toEqual([5000, 5000, 5000]);
     expect(waits[waits.length - 1]).toBe(2000);
+  });
+
+  it('uses a 15s floor after HTTP 429 when coolDownMs is 0, and the user value when it is longer', async () => {
+    const throttled = async (video) =>
+      video.videoId === 'a'
+        ? { ok: false, status: 'failed', step: 'api-throttled', retryable: false, detail: 'HTTP 429' }
+        : { ok: true, status: 'removed', step: 'api-removed' };
+    const run = (coolDownMs, slice) => {
+      const waits = [];
+      return WLC.removeVideos([{ videoId: 'a' }, { videoId: 'b' }], {
+        doc: document,
+        delayMs: 10,
+        maxDelayMs: 10,
+        jitterMs: 0,
+        maxAttempts: 1,
+        coolDownEvery: 0,
+        coolDownMs,
+        coolDownSliceMs: slice,
+        sleep: async (ms) => waits.push(ms),
+        attempt: throttled,
+      }).then((stats) => ({ stats, waits }));
+    };
+    const floor = await run(0, WLC.THROTTLE_FLOOR_MS);
+    expect(floor.stats.coolDowns).toBe(1);
+    expect(floor.waits).toContain(WLC.THROTTLE_FLOOR_MS);
+    expect(WLC.throttlePauseMs(0)).toBe(15000);
+    expect(WLC.throttlePauseMs(5000)).toBe(15000);
+    const longer = await run(20000, 20000);
+    expect(longer.waits).toContain(20000);
+    expect(longer.waits).not.toContain(15000);
+  });
+
+  it('slices the 429 pause so Stop ends it and Resume continues the remainder', async () => {
+    const videos = ['a', 'b', 'c'].map((id) => ({ videoId: id, title: id }));
+    let stop = false;
+    const waits = [];
+    const paused = await WLC.removeVideos(videos, {
+      doc: document,
+      delayMs: 400,
+      maxDelayMs: 5000,
+      jitterMs: 0,
+      maxAttempts: 1,
+      coolDownEvery: 0,
+      coolDownMs: 0,
+      coolDownSliceMs: 1000,
+      shouldStop: () => stop,
+      sleep: async (ms) => {
+        waits.push(ms);
+        if (waits.length === 1) stop = true;
+      },
+      attempt: async (video) =>
+        video.videoId === 'a'
+          ? { ok: false, status: 'failed', step: 'api-throttled', retryable: false, detail: 'HTTP 429' }
+          : { ok: true, status: 'removed', step: 'api-removed' },
+    });
+    expect(paused.stopped).toBe(true);
+    expect(paused.coolDowns).toBe(1);
+    expect(waits.reduce((sum, ms) => sum + ms, 0)).toBeLessThan(WLC.THROTTLE_FLOOR_MS);
+    expect(paused.remaining.map((v) => v.videoId)).toEqual(['a', 'b', 'c']);
+    const resumed = await WLC.removeVideos(paused.remaining, {
+      doc: document,
+      delayMs: 10,
+      maxDelayMs: 40,
+      jitterMs: 0,
+      maxAttempts: 1,
+      coolDownEvery: 0,
+      coolDownMs: 0,
+      sleep: async () => {},
+      attempt: async () => ({ ok: true, status: 'removed', step: 'api-removed' }),
+    });
+    expect(resumed).toMatchObject({ done: 3, failed: 0, stopped: false, remaining: [] });
   });
 
   it('stops during a cool-down and Resume continues the rest', async () => {

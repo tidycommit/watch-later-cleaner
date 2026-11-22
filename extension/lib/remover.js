@@ -3,6 +3,13 @@
   'use strict';
   const WLC = (root.WLC = root.WLC || {});
 
+  /** Minimum pause after an HTTP 429, even when the periodic cool-down is off (coolDownMs 0). */
+  const THROTTLE_FLOOR_MS = 15000;
+
+  function throttlePauseMs(configuredMs) {
+    return Math.max(THROTTLE_FLOOR_MS, Math.max(0, Number(configuredMs) || 0));
+  }
+
   const MENU_ITEM_SELECTOR = [
     'ytd-menu-service-item-renderer',
     'ytd-menu-navigation-item-renderer',
@@ -390,19 +397,19 @@
       if (opts.onLog) opts.onLog(e);
     };
 
-    async function runCoolDown(reason) {
+    async function runCoolDown(reason, totalMs) {
       stats.coolDowns++;
-      log({ event: 'cooldown', detail: `${reason} ${coolMs}ms`, ok: true, step: reason });
-      let left = coolMs;
+      log({ event: 'cooldown', detail: `${reason} ${totalMs}ms`, ok: true, step: reason });
+      let left = totalMs;
       while (left > 0) {
         if (shouldStop()) return false;
-        if (opts.onCoolDown) opts.onCoolDown({ remainingMs: left, totalMs: coolMs, reason });
+        if (opts.onCoolDown) opts.onCoolDown({ remainingMs: left, totalMs, reason });
         if (shouldStop()) return false;
         const step = Math.min(coolSlice, left);
         await wait(step);
         left -= step;
       }
-      if (opts.onCoolDown) opts.onCoolDown({ remainingMs: 0, totalMs: coolMs, reason, done: true });
+      if (opts.onCoolDown) opts.onCoolDown({ remainingMs: 0, totalMs, reason, done: true });
       return true;
     }
 
@@ -452,10 +459,18 @@
       }
       const more = i < queue.length - 1;
       let coolReason = null;
-      if (more && coolMs > 0 && throttled) coolReason = 'api-throttled';
-      else if (more && coolMs > 0 && coolEvery > 0 && r.ok && stats.done > 0 && stats.done % coolEvery === 0) coolReason = 'every';
+      let coolFor = 0;
+      // HTTP 429 always pauses, at least THROTTLE_FLOOR_MS, even when coolDownMs is 0.
+      // A longer user cool-down replaces the floor. The periodic pause stays opt-in.
+      if (more && throttled) {
+        coolReason = 'api-throttled';
+        coolFor = throttlePauseMs(coolMs);
+      } else if (more && coolMs > 0 && coolEvery > 0 && r.ok && stats.done > 0 && stats.done % coolEvery === 0) {
+        coolReason = 'every';
+        coolFor = coolMs;
+      }
       if (coolReason) {
-        const cont = await runCoolDown(coolReason);
+        const cont = await runCoolDown(coolReason, coolFor);
         if (!cont) {
           stats.stopped = true;
           i++;
@@ -526,6 +541,8 @@
     isIncomplete,
     parseAllSettled,
     toPlanEntry,
+    THROTTLE_FLOOR_MS,
+    throttlePauseMs,
     removeVideos,
     redactSecrets,
     formatDebugLog,
