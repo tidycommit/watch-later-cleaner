@@ -4,6 +4,11 @@
   const WLC = (root.WLC = root.WLC || {});
 
   const STORAGE_KEY = 'wlcSettings';
+  // Sibling of STORAGE_KEY. { savedAt: number } only — never the settings payload.
+  const META_KEY = 'wlcSettingsMeta';
+  const SYNC_QUOTA_NOTE = 'Settings saved on this device only: Chrome Sync quota exceeded';
+  const SYNC_UNAVAILABLE_NOTE = 'Settings saved on this device only: Chrome Sync is unavailable';
+  const SAVE_FAILED_NOTE = 'Settings could not be saved.';
 
   const DEFAULTS = Object.freeze({
     watched: true,
@@ -79,6 +84,7 @@
     s.durationValue = Math.round(clampNumber(s.durationValue, 1, 100000, DEFAULTS.durationValue));
     if (s.durationCmp !== 'longer') s.durationCmp = 'shorter';
     if (s.durationUnit !== 'seconds') s.durationUnit = 'minutes';
+    delete s.storageNote;
     return s;
   }
 
@@ -93,39 +99,122 @@
     return normalizeSettings(Object.assign({}, base, over));
   }
 
-  function storageArea() {
+  function storageAreas() {
     try {
-      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) return chrome.storage.sync;
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        return { sync: chrome.storage.sync || null, local: chrome.storage.local || null };
+      }
     } catch (_) {
       /* not in an extension context */
     }
-    return null;
+    return { sync: null, local: null };
+  }
+
+  /**
+   * Merge winner, deterministic:
+   * - a missing copy loses to a present one
+   * - if both are present, the greater meta.savedAt wins
+   * - equal timestamps (including both missing, treated as 0) keep Sync
+   * Sync stays the default for writes that fit. A local copy is newer only after Sync has rejected a write.
+   */
+  function chooseStoredSettings(syncRec, localRec) {
+    const syncOk = Boolean(syncRec && syncRec.settings && typeof syncRec.settings === 'object');
+    const localOk = Boolean(localRec && localRec.settings && typeof localRec.settings === 'object');
+    const syncAt = syncOk && Number.isFinite(Number(syncRec.savedAt)) ? Number(syncRec.savedAt) : 0;
+    const localAt = localOk && Number.isFinite(Number(localRec.savedAt)) ? Number(localRec.savedAt) : 0;
+    if (syncOk && localOk) {
+      if (localAt > syncAt) return { settings: localRec.settings, area: 'local' };
+      return { settings: syncRec.settings, area: 'sync' };
+    }
+    if (syncOk) return { settings: syncRec.settings, area: 'sync' };
+    if (localOk) return { settings: localRec.settings, area: 'local' };
+    return { settings: null, area: null };
+  }
+
+  function syncFailureNote(err) {
+    const message = String((err && err.message) || '');
+    if (/quota|QUOTA_|MAX_WRITE_OPERATIONS|MAX_ITEMS|MAX_SUSTAINED_WRITE/i.test(message)) return SYNC_QUOTA_NOTE;
+    return SYNC_UNAVAILABLE_NOTE;
+  }
+
+  async function readRecord(area) {
+    if (!area || typeof area.get !== 'function') return { settings: null, savedAt: 0 };
+    try {
+      const data = await area.get([STORAGE_KEY, META_KEY]);
+      const settings = data && data[STORAGE_KEY];
+      const meta = data && data[META_KEY];
+      const savedAt = meta && typeof meta === 'object' ? Number(meta.savedAt) : 0;
+      return {
+        settings: settings && typeof settings === 'object' ? settings : null,
+        savedAt: Number.isFinite(savedAt) ? savedAt : 0,
+      };
+    } catch (_) {
+      return { settings: null, savedAt: 0 };
+    }
+  }
+
+  async function writeRecord(area, settings, savedAt) {
+    await area.set({ [STORAGE_KEY]: settings, [META_KEY]: { savedAt } });
   }
 
   async function loadSettings() {
-    const area = storageArea();
-    if (!area) return normalizeSettings(null);
-    try {
-      const data = await area.get(STORAGE_KEY);
-      return normalizeSettings(data && data[STORAGE_KEY]);
-    } catch (_) {
-      return normalizeSettings(null);
-    }
+    const areas = storageAreas();
+    if (!areas.sync && !areas.local) return normalizeSettings(null);
+    const chosen = chooseStoredSettings(await readRecord(areas.sync), await readRecord(areas.local));
+    return normalizeSettings(chosen.settings);
   }
 
   async function saveSettings(settings) {
     const s = normalizeSettings(settings);
-    const area = storageArea();
-    if (area) {
-      try {
-        await area.set({ [STORAGE_KEY]: s });
-      } catch (_) {
-        /* ignore quota / context errors */
+    const areas = storageAreas();
+    let note = '';
+    if (areas.sync || areas.local) {
+      const savedAt = Date.now();
+      if (areas.sync) {
+        try {
+          await writeRecord(areas.sync, s, savedAt);
+          if (areas.local) {
+            try {
+              await writeRecord(areas.local, s, savedAt);
+            } catch (_) {
+              /* the Sync copy is the one that will win a tie */
+            }
+          }
+        } catch (err) {
+          note = syncFailureNote(err);
+          if (areas.local) {
+            try {
+              await writeRecord(areas.local, s, Date.now());
+            } catch (_) {
+              note = SAVE_FAILED_NOTE;
+            }
+          } else note = SAVE_FAILED_NOTE;
+        }
+      } else {
+        try {
+          await writeRecord(areas.local, s, savedAt);
+        } catch (_) {
+          note = SAVE_FAILED_NOTE;
+        }
       }
     }
-    return s;
+    return Object.assign({}, s, { storageNote: note });
   }
 
-  Object.assign(WLC, { DEFAULTS, UNITS, REMOVAL_MODES, STORAGE_KEY, normalizeSettings, applyFormPatch, loadSettings, saveSettings });
+  Object.assign(WLC, {
+    DEFAULTS,
+    UNITS,
+    REMOVAL_MODES,
+    STORAGE_KEY,
+    META_KEY,
+    SYNC_QUOTA_NOTE,
+    SYNC_UNAVAILABLE_NOTE,
+    SAVE_FAILED_NOTE,
+    normalizeSettings,
+    applyFormPatch,
+    chooseStoredSettings,
+    loadSettings,
+    saveSettings,
+  });
   if (typeof module !== 'undefined' && module.exports) module.exports = WLC;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

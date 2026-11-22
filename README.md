@@ -176,7 +176,7 @@ and clicking (Classic) stalls. Fast mode doesn't depend on either:
 7. If it stops or pauses, click **Resume (N left)** to continue. If failures keep happening, click **Copy debug log**
    and paste it into an issue — it lists which step failed for each video.
 
-Settings are shared between the popup and the on-page panel and saved in `chrome.storage.sync`.
+Settings are shared between the popup and the on-page panel. Small settings are saved in `chrome.storage.sync` (and mirrored to `chrome.storage.local`). If Sync rejects the write — 8,192 bytes per item, 102,400 bytes total, or a write-rate cap — the settings are kept in `chrome.storage.local` on this device and the popup and panel say "Settings saved on this device only: Chrome Sync quota exceeded" instead of "saved automatically". On load, the copy with the newer `savedAt` wins. Equal timestamps keep the Sync copy, so Sync stays the default whenever it accepted the write. The debug log still records the normalized settings only, not the raw storage areas.
 The popup includes match any/all and the added-order fields. Saving a popup field rewrites the full stored settings, so values that are only edited on the panel are kept. The Watch Later check treats any `youtube.com` host as the playlist page (`www`, `m`, and the others), the same rule as the on-page panel.
 
 Tips: if YouTube starts lagging or items aren't removed, increase the delay (e.g. 800–1000 ms). Classic mode needs the tab visible.
