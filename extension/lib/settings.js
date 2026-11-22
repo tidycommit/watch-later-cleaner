@@ -82,6 +82,17 @@
     return s;
   }
 
+  /**
+   * Overlay popup/form fields onto the last saved settings.
+   * Keys the form does not send (panel-only or not yet loaded into the form) stay as saved.
+   * `patch` wins for keys it contains. The result is normalized.
+   */
+  function applyFormPatch(saved, patch) {
+    const base = saved && typeof saved === 'object' ? saved : {};
+    const over = patch && typeof patch === 'object' ? patch : {};
+    return normalizeSettings(Object.assign({}, base, over));
+  }
+
   function storageArea() {
     try {
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) return chrome.storage.sync;
@@ -115,6 +126,6 @@
     return s;
   }
 
-  Object.assign(WLC, { DEFAULTS, UNITS, REMOVAL_MODES, STORAGE_KEY, normalizeSettings, loadSettings, saveSettings });
+  Object.assign(WLC, { DEFAULTS, UNITS, REMOVAL_MODES, STORAGE_KEY, normalizeSettings, applyFormPatch, loadSettings, saveSettings });
   if (typeof module !== 'undefined' && module.exports) module.exports = WLC;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

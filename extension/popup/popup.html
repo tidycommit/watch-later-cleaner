@@ -15,7 +15,7 @@
       <button id="analytics" disabled>Analytics</button>
     </div>
     <form id="settings">
-      <h2>Criteria (matches any)</h2>
+      <h2>Criteria (matches <select name="matchMode" aria-label="Match mode"><option value="any">any</option><option value="all">all</option></select>)</h2>
       <label><input type="checkbox" name="watched" /> Watched ≥ <input type="number" name="watchedThreshold" min="1" max="100" /> %</label>
       <label
         ><input type="checkbox" name="olderThan" /> Published ≥ <input type="number" name="olderThanValue" min="1" step="1" />
@@ -46,6 +46,28 @@
         </select></label
       >
       <label title="Later copies of the same video. The first one in the list is kept."><input type="checkbox" name="duplicates" /> Duplicates (keep first)</label>
+      <label title="Uses the playlist's Date added sort. The on-page panel shows whether that sort is active."
+        ><input type="checkbox" name="addedOrder" /> Added order</label
+      >
+      <label
+        >Added
+        <select name="addedMode">
+          <option value="oldestN">oldest N</option>
+          <option value="below">below position #</option>
+          <option value="range">positions #…#</option>
+        </select>
+        <input type="number" name="addedN" min="1" step="1" title="N" />
+        <input type="number" name="addedFrom" min="1" step="1" title="From position" />
+        <input type="number" name="addedTo" min="0" step="1" title="To position (0 = end)" />
+      </label>
+      <label title="Only if the sort can't be read (unusual UI language)."
+        >Sort
+        <select name="addedSortOverride">
+          <option value="auto">detect</option>
+          <option value="newest">newest added first</option>
+          <option value="oldest">oldest added first</option>
+        </select></label
+      >
       <label class="danger"><input type="checkbox" name="removeAll" /> Remove ALL videos</label>
       <h2>Always keep</h2>
       <label>Channel contains</label>
@@ -74,6 +96,7 @@
     </form>
     <p class="muted small">Removal always requires Preview + confirm on the page. Nothing is sent anywhere except youtube.com.</p>
     <script src="../lib/settings.js"></script>
+    <script src="../lib/parse.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

@@ -43,9 +43,12 @@ describe('helpers', () => {
 
   it('isWatchLaterUrl', () => {
     expect(WLC.isWatchLaterUrl('https://www.youtube.com/playlist?list=WL')).toBe(true);
+    expect(WLC.isWatchLaterUrl('https://m.youtube.com/playlist?list=WL')).toBe(true);
+    expect(WLC.isWatchLaterUrl('https://music.youtube.com/playlist?list=WL')).toBe(true);
     expect(WLC.isWatchLaterUrl('https://www.youtube.com/playlist?list=PL123')).toBe(false);
     expect(WLC.isWatchLaterUrl('https://www.youtube.com/watch?v=x&list=WL')).toBe(false);
     expect(WLC.isWatchLaterUrl('https://evil.example/playlist?list=WL')).toBe(false);
+    expect(WLC.isWatchLaterUrl('https://youtube.com.evil.example/playlist?list=WL')).toBe(false);
   });
 });
 
