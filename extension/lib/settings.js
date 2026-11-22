@@ -34,7 +34,7 @@
     matchMode: 'any', // any | all — how ticked criteria combine
     delayMs: 400,
     coolDownEvery: 0, // pause after every N successful removals; 0 = off
-    coolDownMs: 0, // pause length. Also used after HTTP 429 when > 0. 0 = off
+    coolDownMs: 0, // periodic pause length. 0 = off. HTTP 429 still pauses for at least 15s (or this value when it is longer)
     loadAllFirst: true,
     showKept: false, // also list non-matching videos (with their parsed age) in the preview
     menuFallbackPosition: 3, // 1-based menu position used when text/icon match fails; 0 = disabled
