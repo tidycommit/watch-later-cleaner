@@ -160,6 +160,8 @@ and clicking (Classic) stalls. Fast mode doesn't depend on either:
 
 1. Open your Watch Later playlist: <https://www.youtube.com/playlist?list=WL> (or click **Open Watch Later** in the popup).
 2. Click the red **🧹 WL Cleaner** button in the bottom-right corner of the page (or **Show cleaner panel** in the popup).
+   Opening the panel moves focus inside it. **Close** or **Escape** returns focus to that button. **Tab** stays inside the panel.
+   While a removal is running, **Escape** moves focus to **Stop** instead of closing. Left and Right arrows move between the Clean and Analytics tabs.
 3. Pick criteria (watched ≥ %, older than, unavailable, channel/title keywords, or remove all).
 4. Click **Preview (dry run)**. The extension loads all videos (Fast: from YouTube's list requests; Classic: by scrolling) and lists what
    would be removed. The status line ends with the mode used, e.g. `[Fast]`. Nothing is removed yet.
