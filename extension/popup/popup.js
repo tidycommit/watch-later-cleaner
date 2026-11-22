@@ -57,8 +57,14 @@
     }
   }
 
+  const savedEl = document.getElementById('saved');
+  function showSaved(note) {
+    savedEl.textContent = note || 'Settings are saved automatically.';
+  }
+
   form.addEventListener('change', async () => {
-    await WLC.saveSettings(readForm());
+    const saved = await WLC.saveSettings(readForm());
+    showSaved(saved && saved.storageNote);
     send('wlc:reload-settings');
   });
   document.getElementById('open-wl').addEventListener('click', () => {
@@ -72,7 +78,8 @@
     else window.close();
   });
   btnPreview.addEventListener('click', async () => {
-    await WLC.saveSettings(readForm());
+    const saved = await WLC.saveSettings(readForm());
+    showSaved(saved && saved.storageNote);
     await send('wlc:reload-settings');
     const r = await send('wlc:preview');
     if (!r) statusEl.textContent = 'Could not reach the page — reload the tab and try again.';

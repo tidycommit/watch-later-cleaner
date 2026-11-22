@@ -91,6 +91,8 @@
     legend select { font-size: 12px; padding: 0 2px; }
     .added { color: #1a73e8; }
     .hint { color: #606060; font-size: 11px; }
+    .storage-note { color: #b26a00; font-size: 12px; margin: 4px 0; }
+    .storage-note[hidden] { display: none; }
     .mode-row select { flex: 1; }
     .mode-note { margin-top: -2px; }
   `;
@@ -155,6 +157,7 @@
           <button class="btn-resume" hidden>Resume</button>
           <button class="btn-log" disabled title="Copy a plain-text log of every removal attempt (for troubleshooting)">Copy debug log</button>
         </div>
+        <p class="storage-note" hidden></p>
         <div class="status" aria-live="polite">Choose criteria, then click Preview.</div>
         <div class="bar"><div></div></div>
         <details class="pv" hidden open><summary>Preview analytics</summary><div class="pv-out"></div>
@@ -279,6 +282,17 @@
     }
     function setStatus(text) {
       statusEl.textContent = text;
+    }
+    function showStorageNote(note) {
+      const el = $('.storage-note');
+      if (!el) return;
+      el.textContent = note || '';
+      el.hidden = !note;
+    }
+    async function persistSettings(s) {
+      const saved = await WLC.saveSettings(s);
+      showStorageNote(saved && saved.storageNote);
+      return WLC.normalizeSettings(s);
     }
     function setBar(frac) {
       barEl.style.width = `${Math.round(Math.max(0, Math.min(1, frac)) * 100)}%`;
@@ -468,7 +482,7 @@
     async function preview() {
       if (state.busy) return;
       const s = (state.settings = readForm());
-      WLC.saveSettings(s);
+      state.settings = await persistSettings(s);
       invalidatePlan();
       if (!WLC.hasCriteria(s)) {
         setStatus('Select at least one criterion first.');
@@ -798,14 +812,14 @@
       return text;
     }
 
-    function useChannelFilter(name) {
+    async function useChannelFilter(name) {
       const next = Object.assign({}, readForm(), { channelFilter: true, channelKeywords: name });
       state.settings = WLC.normalizeSettings(next);
       writeForm(state.settings);
-      WLC.saveSettings(state.settings);
       invalidatePlan();
       showTab('clean');
       setStatus(`Channel filter set to “${name}”. Click Preview to see what would be removed.`);
+      state.settings = await persistSettings(state.settings);
     }
 
     shadow.querySelectorAll('.tabs [data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
@@ -840,7 +854,9 @@
       if (t.matches('[data-k]')) {
         if (t.dataset.k === 'removeAll' && t.checked) setStatus('⚠ "Remove ALL" ignores the other filters.');
         state.settings = readForm();
-        WLC.saveSettings(state.settings);
+        persistSettings(state.settings).then((saved) => {
+          if (!state.busy) state.settings = saved;
+        });
         invalidatePlan();
         if (t.dataset.k === 'addedSortOverride') refreshSort();
         else applyAddedState();
@@ -902,14 +918,18 @@
     try {
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
         chrome.storage.onChanged.addListener((changes, area) => {
-          if (area !== 'sync' || !changes[WLC.STORAGE_KEY] || state.busy) return;
-          const next = WLC.normalizeSettings(changes[WLC.STORAGE_KEY].newValue);
-          if (JSON.stringify(next) !== JSON.stringify(state.settings)) {
-            state.settings = next;
-            writeForm(state.settings);
-            refreshSort();
-            invalidatePlan();
-          }
+          if ((area !== 'sync' && area !== 'local') || state.busy) return;
+          if (!changes[WLC.STORAGE_KEY] && !changes[WLC.META_KEY]) return;
+          // Re-read through the merge so a newer local copy is not overwritten by a stale Sync echo.
+          WLC.loadSettings().then((next) => {
+            if (state.busy) return;
+            if (JSON.stringify(next) !== JSON.stringify(WLC.normalizeSettings(state.settings))) {
+              state.settings = next;
+              writeForm(state.settings);
+              refreshSort();
+              invalidatePlan();
+            }
+          });
         });
       }
     } catch (_) {

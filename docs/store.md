@@ -28,7 +28,7 @@ Publish this on a page you control, then paste that page's URL into the store li
 
 Watch Later Cleaner is a browser extension that removes videos from your YouTube Watch Later playlist after you preview and confirm.
 
-**Data the extension stores.** Your criteria and options (thresholds, keywords, delays, removal mode) are saved with `chrome.storage.sync` so the popup and the on-page panel share them. That data stays in your browser's extension storage. The extension does not operate its own server and does not send those settings anywhere.
+**Data the extension stores.** Your criteria and options (thresholds, keywords, delays, removal mode) are saved with `chrome.storage.sync` so the popup and the on-page panel share them, and mirrored to `chrome.storage.local`. If Chrome Sync rejects a write because of its quota or write-rate limits, the settings stay in `chrome.storage.local` on that device. The newer copy is the one loaded; when both copies have the same timestamp, Sync wins. That data stays in your browser's extension storage. The extension does not operate its own server and does not send those settings anywhere.
 
 **Data the extension does not collect.** It does not collect analytics, crash reports, advertising identifiers, or account information. It does not ask you to sign in to a developer account. It does not read or transmit your cookies, your `Authorization` header, or your Watch Later list to anyone but YouTube.
 
@@ -46,7 +46,7 @@ This extension is not affiliated with YouTube or Google.
 
 | Permission | Why it is needed | What it is not used for |
 | --- | --- | --- |
-| `storage` | Save the options you set in the popup and the on-page panel (`chrome.storage.sync`). | Analytics, accounts, or syncing to a developer server. |
+| `storage` | Save the options you set in the popup and the on-page panel (`chrome.storage.sync`, with `chrome.storage.local` when Sync rejects the write). | Analytics, accounts, or syncing to a developer server. |
 | `https://www.youtube.com/*` | Inject the panel on the Watch Later page, read playlist rows, and (Fast mode) call YouTube's own web endpoints from that page. | Any other site. The manifest has no other host permission. |
 
 The extension has no `tabs`, `scripting`, `cookies`, `webRequest`, `identity`, or `<all_urls>` permission. Fast mode does not add a host. The background service worker only paces a timer while a tab is hidden. It does not make network requests.
