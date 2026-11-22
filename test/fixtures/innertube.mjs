@@ -224,7 +224,7 @@ export function sapisidHashNode(sapisid, origin, ts) {
  */
 export function createFakeInnertube(videos, opts = {}) {
   const pageSize = opts.pageSize || 100;
-  const state = { videos: videos.slice(), browseCalls: 0, editCalls: 0, removed: [], requests: [], authErrors: 0, failEdits: opts.failEdits || 0 };
+  const state = { videos: videos.slice(), browseCalls: 0, editCalls: 0, removed: [], added: [], requests: [], authErrors: 0, failEdits: opts.failEdits || 0, failAdds: opts.failAdds || 0 };
   const checkAuth = (headers) => {
     if (!opts.sapisid) return true;
     const h = Object.fromEntries(Object.entries(headers || {}).map(([k, v]) => [k.toLowerCase(), v]));
@@ -243,7 +243,19 @@ export function createFakeInnertube(videos, opts = {}) {
         state.failEdits--;
         return { status: 500, json: { error: { code: 500, status: 'INTERNAL', message: 'Internal error encountered.' } } };
       }
-      if (b.playlistId !== 'WL' || !Array.isArray(b.actions) || !b.actions.length) return { status: 400, json: { error: { code: 400, status: 'INVALID_ARGUMENT' } } };
+      if (b.playlistId !== 'WL' || !Array.isArray(b.actions) || b.actions.length !== 1) return { status: 400, json: { error: { code: 400, status: 'INVALID_ARGUMENT' } } };
+      const added = b.actions[0];
+      if (added.action === 'ACTION_ADD_VIDEO') {
+        if (state.failAdds > 0) {
+          state.failAdds--;
+          return { status: 200, json: { status: 'STATUS_FAILED' } };
+        }
+        if (!added.addedVideoId) return { status: 400, json: { error: { code: 400, status: 'INVALID_ARGUMENT' } } };
+        if (state.videos.some((v) => v.id === added.addedVideoId)) return { status: 200, json: { status: 'STATUS_FAILED' } };
+        state.added.push(added.addedVideoId);
+        state.videos.unshift({ id: added.addedVideoId, title: added.addedVideoId });
+        return { status: 200, json: { responseContext: {}, status: 'STATUS_SUCCEEDED' } };
+      }
       for (const a of b.actions) {
         const idx = state.videos.findIndex((v) => (a.action === 'ACTION_REMOVE_VIDEO' && setVideoIdFor(v.id) === a.setVideoId) || (a.action === 'ACTION_REMOVE_VIDEO_BY_VIDEO_ID' && v.id === a.removedVideoId));
         if (idx < 0) return { status: 200, json: { responseContext: {}, status: 'STATUS_FAILED' } };

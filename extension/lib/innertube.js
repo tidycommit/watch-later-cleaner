@@ -169,6 +169,24 @@
     return { context: cloneContext(context), actions, playlistId };
   }
 
+  /**
+   * Add one video to a playlist.
+   * Public InnerTube clients send this same action on browse/edit_playlist:
+   * YouTube.js PlaylistManager.addVideos and ytmusicapi add_playlist_items
+   * both use { action: 'ACTION_ADD_VIDEO', addedVideoId }.
+   */
+  function buildAddAction(video) {
+    const id = video && (video.videoId || video.addedVideoId);
+    if (!id) return null;
+    return { action: 'ACTION_ADD_VIDEO', addedVideoId: String(id) };
+  }
+
+  /** One video per edit_playlist request. Extra ids are not batched. */
+  function buildAddPlaylistBody(context, video, playlistId = WL_PLAYLIST_ID) {
+    const action = buildAddAction(video);
+    return { context: cloneContext(context), actions: action ? [action] : [], playlistId };
+  }
+
   // ---------- Response parsing ----------
   function textOf(t) {
     if (!t) return '';
@@ -532,6 +550,17 @@
     return { ok: false, status: 'failed', step, detail: parts.join(' '), retryable: step !== 'api-unauthorized' };
   }
 
+  /**
+   * Interpret an edit_playlist add. Success only when HTTP is OK and status is STATUS_SUCCEEDED.
+   * A failed or empty status must not be reported as added.
+   */
+  function interpretAddResponse(httpOk, httpStatus, json) {
+    const j = json && typeof json === 'object' ? json : {};
+    if (httpOk && j.status === 'STATUS_SUCCEEDED') return { ok: true, status: 'added', step: 'api-added', detail: 'STATUS_SUCCEEDED' };
+    const failed = interpretEditResponse(httpOk, httpStatus, j);
+    return { ok: false, status: 'failed', step: failed.step, detail: failed.detail, retryable: failed.retryable };
+  }
+
   Object.assign(WLC, {
     IT: Object.freeze({ ORIGIN, BROWSE_PATH, EDIT_PLAYLIST_PATH, WL_PLAYLIST_ID, WL_BROWSE_ID }),
     sha1Hex,
@@ -545,6 +574,8 @@
     buildBrowseBody,
     buildRemoveAction,
     buildEditPlaylistBody,
+    buildAddAction,
+    buildAddPlaylistBody,
     textOf,
     continuationToken,
     parsePlaylistVideoRenderer,
@@ -552,6 +583,7 @@
     parseBrowseResponse,
     isWatchLaterData,
     interpretEditResponse,
+    interpretAddResponse,
   });
   if (typeof module !== 'undefined' && module.exports) module.exports = WLC;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

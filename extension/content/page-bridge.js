@@ -78,7 +78,17 @@
         if (!body.actions.length) return { httpOk: false, httpStatus: 0, json: { error: { message: 'no video id' } } };
         const r = await post(IT.IT.EDIT_PLAYLIST_PATH, body);
         const j = r.json || {};
-        // Hand back only what's needed to judge success.
+        // Hand back only what's needed to judge success. Never cookies or Authorization.
+        return { httpOk: r.httpOk, httpStatus: r.httpStatus, json: { status: j.status, error: j.error ? { status: j.error.status, code: j.error.code, message: j.error.message } : undefined } };
+      },
+      async add(args) {
+        const c = cfg();
+        if (!c || !c.context) return { httpOk: false, httpStatus: 0, json: { error: { message: 'ytcfg missing' } } };
+        const video = args && (args.video || (Array.isArray(args.videos) ? args.videos[0] : null));
+        const body = IT.buildAddPlaylistBody(c.context, video ? { videoId: video.videoId || video.addedVideoId || null } : null);
+        if (body.actions.length !== 1) return { httpOk: false, httpStatus: 0, json: { error: { message: 'no video id' } } };
+        const r = await post(IT.IT.EDIT_PLAYLIST_PATH, body);
+        const j = r.json || {};
         return { httpOk: r.httpOk, httpStatus: r.httpStatus, json: { status: j.status, error: j.error ? { status: j.error.status, code: j.error.code, message: j.error.message } : undefined } };
       },
     };

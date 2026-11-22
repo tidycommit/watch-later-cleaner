@@ -460,3 +460,155 @@ describe('periodic cool-down', () => {
     expect(resumed).toMatchObject({ done: 3, failed: 0, stopped: false, remaining: [] });
   });
 });
+
+describe('undo last Fast run', () => {
+  it('addOne sends one ACTION_ADD_VIDEO and never returns credentials', async () => {
+    const api = setupPage();
+    const replies = [];
+    const onMessage = (e) => {
+      const m = e.data;
+      if (m && m.source === 'wlc-ext' && m.dir === 'res') replies.push(JSON.parse(JSON.stringify(m)));
+    };
+    window.addEventListener('message', onMessage);
+    try {
+      fetchLog.length = 0;
+      const added = await api.addOne({ videoId: 'zzzzzzzzzz1' });
+      expect(added).toMatchObject({ ok: true, status: 'added', step: 'api-added', method: 'api:addVideoId' });
+      const req = fetchLog[fetchLog.length - 1];
+      expect(req.url).toMatch(/\/youtubei\/v1\/browse\/edit_playlist/);
+      expect(JSON.parse(req.body)).toMatchObject({ playlistId: 'WL', actions: [{ action: 'ACTION_ADD_VIDEO', addedVideoId: 'zzzzzzzzzz1' }] });
+      expect(JSON.parse(req.body).actions).toHaveLength(1);
+      expect(req.headers.Authorization).toMatch(/^SAPISIDHASH /);
+      expect(JSON.stringify(added)).not.toMatch(/SAPISID|Authorization|Cookie/i);
+      expect(JSON.stringify(replies)).not.toContain(SAPISID);
+      expect(JSON.stringify(replies)).not.toMatch(/Authorization|Cookie/i);
+      const again = await api.addOne({ videoId: 'zzzzzzzzzz1' });
+      expect(again.ok).toBe(false);
+      expect(again.status).not.toBe('added');
+    } finally {
+      window.removeEventListener('message', onMessage);
+    }
+  });
+
+  it('re-adds the last Fast removal one id at a time, then clears it', async () => {
+    setupPage({ pageSize: 4 });
+    const sync = { wlcSettings: null };
+    globalThis.chrome = {
+      storage: {
+        sync: {
+          async get() { return { wlcSettings: sync.wlcSettings }; },
+          async set(obj) { Object.assign(sync, obj); },
+        },
+        onChanged: { addListener() {} },
+      },
+      runtime: { getManifest() { return { version: 't' }; } },
+    };
+    const panel = WLC.createPanel(document);
+    const $ = (s) => panel.shadow.querySelector(s);
+    const gaps = [];
+    const origPace = WLC.pace;
+    WLC.pace = async (ms) => gaps.push(ms);
+    try {
+      await panel.reloadSettings();
+      panel.show();
+      await panel.preview();
+      panel.state.settings.delayMs = 123;
+      await panel.remove();
+      await panel.remove();
+      expect($('.status').textContent).toMatch(/^Done: removed 4 of 4\. \[Fast\]/);
+      expect($('.btn-undo').hidden).toBe(false);
+      expect(panel.state.undoIds).toEqual(['aaaaaaaaaa1', 'aaaaaaaaaa2', 'aaaaaaaaaa4', 'aaaaaaaaaa5']);
+      expect(JSON.stringify(sync)).not.toContain('aaaaaaaaaa1');
+      expect(JSON.stringify(sync)).not.toContain('undoIds');
+      const removed = server.state.removed.slice();
+      fetchLog.length = 0;
+      gaps.length = 0;
+      await panel.undoLast();
+      expect(server.state.added).toEqual(removed);
+      expect(fetchLog.map((r) => JSON.parse(r.body).actions)).toEqual(removed.map((id) => [{ action: 'ACTION_ADD_VIDEO', addedVideoId: id }]));
+      expect(gaps).toEqual([123, 123, 123]);
+      expect($('.status').textContent).toMatch(/Undo: re-added 4, failed 0\./);
+      expect($('.btn-undo').hidden).toBe(true);
+      expect(panel.state.undoIds).toEqual([]);
+      const text = await panel.copyDebugLog();
+      expect(text).not.toContain(SAPISID);
+      expect(text).not.toMatch(/Authorization|Cookie/i);
+      for (let i = 0; i < sessionStorage.length; i++) {
+        expect(sessionStorage.getItem(sessionStorage.key(i)) || '').not.toContain('aaaaaaaaaa1');
+      }
+    } finally {
+      WLC.pace = origPace;
+      panel.destroy();
+      delete globalThis.chrome;
+    }
+  });
+
+  it('a failed add does not claim success and a new Remove replaces the undo list', async () => {
+    setupPage({ pageSize: 4 });
+    const panel = WLC.createPanel(document);
+    const $ = (s) => panel.shadow.querySelector(s);
+    const origPace = WLC.pace;
+    WLC.pace = async () => {};
+    try {
+      await panel.reloadSettings();
+      await panel.preview();
+      await panel.remove();
+      await panel.remove();
+      const first = panel.state.undoIds.slice();
+      expect(first).toHaveLength(4);
+      const inner = server.handle.bind(server);
+      server.handle = (req) => {
+        const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+        if (/edit_playlist/.test(req.url) && body.actions && body.actions[0] && body.actions[0].action === 'ACTION_ADD_VIDEO') {
+          return { status: 200, json: { status: 'STATUS_FAILED' } };
+        }
+        return inner(req);
+      };
+      const result = await panel.undoLast();
+      expect(result).toMatchObject({ ok: 0, failed: 4 });
+      expect($('.status').textContent).toMatch(/Undo: re-added 0, failed 4\./);
+      expect($('.status').textContent).not.toMatch(/re-added [1-9]/);
+      expect($('.btn-undo').hidden).toBe(false);
+      expect(server.state.added).toEqual([]);
+
+      server.handle = inner;
+      await panel.preview();
+      expect(panel.state.undoIds).toEqual([]);
+      expect($('.btn-undo').hidden).toBe(true);
+      panel.state.undoIds = first.concat(['stale-id']);
+      panel.state.plan = [{ video: { videoId: 'aaaaaaaaaa9', title: 'Podcast episode #42 – productivity' }, reasons: ['watched'] }];
+      panel.state.armed = true;
+      await panel.remove();
+      expect(panel.state.undoIds).toEqual(['aaaaaaaaaa9']);
+      expect(panel.state.undoIds).not.toContain('stale-id');
+    } finally {
+      WLC.pace = origPace;
+      panel.destroy();
+    }
+  });
+
+  it('does not offer undo after a Classic run', async () => {
+    setupPage({ pageSize: 4, fakeMenu: true });
+    const panel = WLC.createPanel(document);
+    const $ = (s) => panel.shadow.querySelector(s);
+    const orig = WLC.removeWithFallback;
+    WLC.removeWithFallback = async () => ({
+      done: 2, failed: 0, skipped: 0, total: 2, stopped: false, aborted: false, remaining: [], steps: {}, log: [], modeUsed: 'classic',
+    });
+    try {
+      await panel.reloadSettings();
+      panel.state.plan = [
+        { video: { videoId: 'aaaaaaaaaa1', title: 'a' }, reasons: ['watched'] },
+        { video: { videoId: 'aaaaaaaaaa2', title: 'b' }, reasons: ['watched'] },
+      ];
+      panel.state.armed = true;
+      panel.state.settings.removalMode = 'classic';
+      await panel.remove();
+      expect(panel.state.undoIds).toEqual([]);
+      expect($('.btn-undo').hidden).toBe(true);
+    } finally {
+      WLC.removeWithFallback = orig;
+      panel.destroy();
+    }
+  });
+});
