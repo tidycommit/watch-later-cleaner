@@ -37,7 +37,7 @@ with a dry-run preview before anything is removed.
     (on a newest-first list the oldest are at the end) and matches nothing if the list didn't finish loading.
   - Preview rows show e.g. `added #12 of 2,691 (oldest = 1)`. Removal is still by video ID, so positions shifting during removal don't matter.
 - **Remove all.**
-- **Match any / all** (selector in the criteria header): *any* (default) removes a video matching any ticked criterion;
+- **Match any / all** (selector in the criteria header, and the same control in the popup): *any* (default) removes a video matching any ticked criterion;
   *all* requires every ticked criterion, e.g. "oldest 500 added **and** published at least 3 years ago".
 - **Dry run first:** *Preview* shows the count and the list of matched videos (with the reason each matched).
   Untick anything you want to keep. *Remove* then needs a second **Confirm** click.
@@ -170,6 +170,7 @@ and clicking (Classic) stalls. Fast mode doesn't depend on either:
    and paste it into an issue — it lists which step failed for each video.
 
 Settings are shared between the popup and the on-page panel and saved in `chrome.storage.sync`.
+The popup includes match any/all and the added-order fields. Saving a popup field rewrites the full stored settings, so values that are only edited on the panel are kept. The Watch Later check treats any `youtube.com` host as the playlist page (`www`, `m`, and the others), the same rule as the on-page panel.
 
 Tips: if YouTube starts lagging or items aren't removed, increase the delay (e.g. 800–1000 ms). Classic mode needs the tab visible.
 YouTube hides unavailable videos by default; use the playlist's **⋮ → Show unavailable videos** first if you want to remove them.
