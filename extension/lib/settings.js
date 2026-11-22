@@ -39,7 +39,7 @@
     matchMode: 'any', // any | all — how ticked criteria combine
     delayMs: 400,
     coolDownEvery: 0, // pause after every N successful removals; 0 = off
-    coolDownMs: 0, // pause length. Also used after HTTP 429 when > 0. 0 = off
+    coolDownMs: 0, // periodic pause length. 0 = off. HTTP 429 still pauses for at least 15s (or this value when it is longer)
     loadAllFirst: true,
     showKept: false, // also list non-matching videos (with their parsed age) in the preview
     menuFallbackPosition: 3, // 1-based menu position used when text/icon match fails; 0 = disabled
@@ -86,6 +86,17 @@
     if (s.durationUnit !== 'seconds') s.durationUnit = 'minutes';
     delete s.storageNote;
     return s;
+  }
+
+  /**
+   * Overlay popup/form fields onto the last saved settings.
+   * Keys the form does not send (panel-only or not yet loaded into the form) stay as saved.
+   * `patch` wins for keys it contains. The result is normalized.
+   */
+  function applyFormPatch(saved, patch) {
+    const base = saved && typeof saved === 'object' ? saved : {};
+    const over = patch && typeof patch === 'object' ? patch : {};
+    return normalizeSettings(Object.assign({}, base, over));
   }
 
   function storageAreas() {
@@ -200,6 +211,7 @@
     SYNC_UNAVAILABLE_NOTE,
     SAVE_FAILED_NOTE,
     normalizeSettings,
+    applyFormPatch,
     chooseStoredSettings,
     loadSettings,
     saveSettings,

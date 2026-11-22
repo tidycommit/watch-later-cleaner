@@ -37,7 +37,7 @@ with a dry-run preview before anything is removed.
     (on a newest-first list the oldest are at the end) and matches nothing if the list didn't finish loading.
   - Preview rows show e.g. `added #12 of 2,691 (oldest = 1)`. Removal is still by video ID, so positions shifting during removal don't matter.
 - **Remove all.**
-- **Match any / all** (selector in the criteria header): *any* (default) removes a video matching any ticked criterion;
+- **Match any / all** (selector in the criteria header, and the same control in the popup): *any* (default) removes a video matching any ticked criterion;
   *all* requires every ticked criterion, e.g. "oldest 500 added **and** published at least 3 years ago".
 - **Dry run first:** *Preview* shows the count and the list of matched videos (with the reason each matched).
   Untick anything you want to keep. *Remove* then needs a second **Confirm** click.
@@ -47,8 +47,9 @@ with a dry-run preview before anything is removed.
   automatic fallback when Fast can't run.
 - Both modes remove one video at a time with a configurable delay (default **400 ms**; Fast adds 0–200 ms of jitter), a progress
   bar/counter and a **Stop** button. Built for long lists (thousands of items). Optional **cool-down** (off by default):
-  after every N successful removals, and after an HTTP 429 (`api-throttled`), the run pauses for a chosen number of milliseconds
-  and shows a countdown. **Stop** during that pause ends the run; **Resume** continues with whatever is left. Classic specifics:
+  after every N successful removals the run pauses for a chosen number of milliseconds and shows a countdown.
+  An HTTP 429 (`api-throttled`) always pauses for at least **15 seconds**, or for the chosen cool-down when that is longer,
+  even if the periodic cool-down is off. The pause is sliced so **Stop** works during it; **Resume** continues with whatever is left. Classic specifics:
   - the removal plan is a list of **video IDs**; each video is located fresh by ID right before acting and success is verified by
     that ID disappearing (YouTube re-uses row elements after removals, so element references can't be trusted),
     with YouTube's "Removed from Watch later" toast as a second confirmation;
@@ -114,7 +115,11 @@ and clicking (Classic) stalls. Fast mode doesn't depend on either:
   the "3 years ago" text and the position. The same filters, preview and analytics then run on that list.
 - **Removal.** Each video is removed with `/youtubei/v1/browse/edit_playlist` (`playlistId: "WL"`, `ACTION_REMOVE_VIDEO` with
   the entry's `setVideoId`; `ACTION_REMOVE_VIDEO_BY_VIDEO_ID` if only the video ID is known). It goes one video at a time, waits for
-  each response and counts a removal only when the response is OK **and** reports `STATUS_SUCCEEDED`. Retries, adaptive backoff,
+  each response and counts a removal only when the response is OK **and** reports `STATUS_SUCCEEDED`. After a Fast run that
+  removed at least one video, **Undo last run** puts those video ids back on Watch Later the same way, one `edit_playlist`
+  request at a time (`ACTION_ADD_VIDEO` with `addedVideoId`), waiting the configured delay between them. The undo list stays
+  in memory for that panel only. It is cleared after a successful undo and when you start a new Preview or Remove. Classic
+  removal is not undone. Retries, adaptive backoff,
   the pause after 8 failures in a row, Resume and the debug log work as in Classic. Removed rows are taken off the page; reload it
   to refresh the list from YouTube.
 - **How the requests are made.** A small script runs in the page's own JavaScript context (a Manifest V3 `world: "MAIN"` content
@@ -160,6 +165,8 @@ and clicking (Classic) stalls. Fast mode doesn't depend on either:
 
 1. Open your Watch Later playlist: <https://www.youtube.com/playlist?list=WL> (or click **Open Watch Later** in the popup).
 2. Click the red **🧹 WL Cleaner** button in the bottom-right corner of the page (or **Show cleaner panel** in the popup).
+   Opening the panel moves focus inside it. **Close** or **Escape** returns focus to that button. **Tab** stays inside the panel.
+   While a removal is running, **Escape** moves focus to **Stop** instead of closing. Left and Right arrows move between the Clean and Analytics tabs.
 3. Pick criteria (watched ≥ %, older than, unavailable, channel/title keywords, or remove all).
 4. Click **Preview (dry run)**. The extension loads all videos (Fast: from YouTube's list requests; Classic: by scrolling) and lists what
    would be removed. The status line ends with the mode used, e.g. `[Fast]`. Nothing is removed yet.
@@ -170,6 +177,7 @@ and clicking (Classic) stalls. Fast mode doesn't depend on either:
    and paste it into an issue — it lists which step failed for each video.
 
 Settings are shared between the popup and the on-page panel. Small settings are saved in `chrome.storage.sync` (and mirrored to `chrome.storage.local`). If Sync rejects the write — 8,192 bytes per item, 102,400 bytes total, or a write-rate cap — the settings are kept in `chrome.storage.local` on this device and the popup and panel say "Settings saved on this device only: Chrome Sync quota exceeded" instead of "saved automatically". On load, the copy with the newer `savedAt` wins. Equal timestamps keep the Sync copy, so Sync stays the default whenever it accepted the write. The debug log still records the normalized settings only, not the raw storage areas.
+The popup includes match any/all and the added-order fields. Saving a popup field rewrites the full stored settings, so values that are only edited on the panel are kept. The Watch Later check treats any `youtube.com` host as the playlist page (`www`, `m`, and the others), the same rule as the on-page panel.
 
 Tips: if YouTube starts lagging or items aren't removed, increase the delay (e.g. 800–1000 ms). Classic mode needs the tab visible.
 YouTube hides unavailable videos by default; use the playlist's **⋮ → Show unavailable videos** first if you want to remove them.

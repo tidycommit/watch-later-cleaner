@@ -172,6 +172,20 @@
       return { videos: raw.map(toVideo), complete: !token, pages, source, listShape };
     }
 
+    /** One edit_playlist request adding one video back. Success only when interpretAddResponse says so. */
+    async function addOne(video) {
+      const videoId = video && video.videoId;
+      if (!videoId) return { ok: false, status: 'failed', step: 'api-no-video-id', retryable: false };
+      try {
+        const r = await bridge.call('add', { video: { videoId: String(videoId) } });
+        const out = WLC.interpretAddResponse(r && r.httpOk, r && r.httpStatus, r && r.json);
+        out.method = 'api:addVideoId';
+        return out;
+      } catch (e) {
+        return { ok: false, status: 'failed', step: e.step || 'bridge-error', detail: String(e.message || e).slice(0, 160), retryable: true };
+      }
+    }
+
     /** One edit_playlist request removing one video. Same result shape as remover.js attemptRemove. */
     async function removeOne(video) {
       if (!video || (!video.videoId && !video.setVideoId)) return { ok: false, status: 'failed', step: 'api-no-video-id', retryable: false };
@@ -185,7 +199,7 @@
       }
     }
 
-    return { probe, listAll, removeOne, bridge };
+    return { probe, listAll, removeOne, addOne, bridge };
   }
 
   /** Remove the row of a video the API already removed, so the page matches (YouTube doesn't know yet). */

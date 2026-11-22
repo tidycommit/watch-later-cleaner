@@ -9,29 +9,40 @@
   const btnAnalytics = document.getElementById('analytics');
   let activeTab = null;
 
-  function isWatchLater(url) {
+  /** Same host rule as WLC.isWatchLaterUrl: any youtube.com host, not only www. */
+  function isYouTubeHost(url) {
     try {
-      const u = new URL(url);
-      return u.hostname === 'www.youtube.com' && u.pathname === '/playlist' && u.searchParams.get('list') === 'WL';
+      return /(^|\.)youtube\.com$/.test(new URL(url).hostname);
     } catch (_) {
       return false;
     }
   }
 
+  function isWatchLater(url) {
+    return WLC.isWatchLaterUrl(url);
+  }
+
+  // Last full settings object. readForm overlays the popup fields on this so keys the popup
+  // does not render (or that were removed from the DOM) are not reset to defaults.
+  let loaded = WLC.normalizeSettings(null);
+  let ready = false;
+
   function writeForm(s) {
+    loaded = WLC.normalizeSettings(s);
     for (const el of form.elements) {
-      if (!el.name) continue;
-      if (el.type === 'checkbox') el.checked = Boolean(s[el.name]);
-      else el.value = s[el.name];
+      if (!el.name || !(el.name in loaded)) continue;
+      if (el.type === 'checkbox') el.checked = Boolean(loaded[el.name]);
+      else el.value = loaded[el.name];
     }
   }
   function readForm() {
-    const raw = {};
+    const patch = {};
     for (const el of form.elements) {
       if (!el.name) continue;
-      raw[el.name] = el.type === 'checkbox' ? el.checked : el.value;
+      patch[el.name] = el.type === 'checkbox' ? el.checked : el.value;
     }
-    return WLC.normalizeSettings(raw);
+    loaded = WLC.applyFormPatch(loaded, patch);
+    return loaded;
   }
 
   async function send(type) {
@@ -45,6 +56,7 @@
 
   async function init() {
     writeForm(await WLC.loadSettings());
+    ready = true;
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     activeTab = tab || null;
     if (activeTab && isWatchLater(activeTab.url)) {
@@ -63,12 +75,13 @@
   }
 
   form.addEventListener('change', async () => {
+    if (!ready) return;
     const saved = await WLC.saveSettings(readForm());
     showSaved(saved && saved.storageNote);
     send('wlc:reload-settings');
   });
   document.getElementById('open-wl').addEventListener('click', () => {
-    if (activeTab && /^https:\/\/www\.youtube\.com\//.test(activeTab.url || '')) chrome.tabs.update(activeTab.id, { url: WL_URL });
+    if (activeTab && isYouTubeHost(activeTab.url || '')) chrome.tabs.update(activeTab.id, { url: WL_URL });
     else chrome.tabs.create({ url: WL_URL });
     window.close();
   });

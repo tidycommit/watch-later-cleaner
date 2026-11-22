@@ -355,6 +355,39 @@ describe('settings + panel', () => {
     expect(panel.shadow.querySelector('.status').textContent).toMatch(/\[Classic: Fast mode unavailable — fast mode unavailable \(ytcfg-missing\)\]/);
   });
 
+  it('panel status shows the built-in 15s HTTP 429 pause at the default cool-down', async () => {
+    setupPage({ pageSize: 4 });
+    const inner = server.handle.bind(server);
+    let edits = 0;
+    server.handle = (req) => {
+      if (/edit_playlist/.test(req.url)) {
+        edits++;
+        if (edits === 1) return { status: 429, json: { error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'Too many' } } };
+      }
+      return inner(req);
+    };
+    const panel = WLC.createPanel(document);
+    const $ = (s) => panel.shadow.querySelector(s);
+    await panel.reloadSettings();
+    expect(panel.state.settings).toMatchObject({ coolDownEvery: 0, coolDownMs: 0, delayMs: 400 });
+    const seen = [];
+    const orig = WLC.sleep;
+    WLC.sleep = async () => {
+      seen.push($('.status').textContent);
+    };
+    try {
+      panel.show();
+      await panel.preview();
+      await panel.remove();
+      await panel.remove();
+    } finally {
+      WLC.sleep = orig;
+      panel.destroy();
+    }
+    expect(seen.some((text) => /Cooling down… 15s left \(HTTP 429\)/.test(text))).toBe(true);
+    expect($('.status').textContent).toMatch(/^Done: removed 4 of 4\. \[Fast\]/);
+  });
+
   it('panel stores cool-down settings and shows the countdown', async () => {
     setupPage({ pageSize: 4 });
     const panel = WLC.createPanel(document);
@@ -432,9 +465,81 @@ describe('periodic cool-down', () => {
     });
     expect(stats.log[0]).toMatchObject({ step: 'api-throttled', ok: false });
     expect(stats.done).toBe(2);
-    expect(stats.coolDowns).toBeGreaterThanOrEqual(1);
-    expect(waits).toContain(5000);
+    expect(stats.coolDowns).toBe(1);
+    // Configured 5s is below the 15s floor, so the pause is three 5s slices, not a single 5s sleep.
+    expect(waits.filter((ms) => ms === 5000)).toEqual([5000, 5000, 5000]);
     expect(waits[waits.length - 1]).toBe(2000);
+  });
+
+  it('uses a 15s floor after HTTP 429 when coolDownMs is 0, and the user value when it is longer', async () => {
+    const throttled = async (video) =>
+      video.videoId === 'a'
+        ? { ok: false, status: 'failed', step: 'api-throttled', retryable: false, detail: 'HTTP 429' }
+        : { ok: true, status: 'removed', step: 'api-removed' };
+    const run = (coolDownMs, slice) => {
+      const waits = [];
+      return WLC.removeVideos([{ videoId: 'a' }, { videoId: 'b' }], {
+        doc: document,
+        delayMs: 10,
+        maxDelayMs: 10,
+        jitterMs: 0,
+        maxAttempts: 1,
+        coolDownEvery: 0,
+        coolDownMs,
+        coolDownSliceMs: slice,
+        sleep: async (ms) => waits.push(ms),
+        attempt: throttled,
+      }).then((stats) => ({ stats, waits }));
+    };
+    const floor = await run(0, WLC.THROTTLE_FLOOR_MS);
+    expect(floor.stats.coolDowns).toBe(1);
+    expect(floor.waits).toContain(WLC.THROTTLE_FLOOR_MS);
+    expect(WLC.throttlePauseMs(0)).toBe(15000);
+    expect(WLC.throttlePauseMs(5000)).toBe(15000);
+    const longer = await run(20000, 20000);
+    expect(longer.waits).toContain(20000);
+    expect(longer.waits).not.toContain(15000);
+  });
+
+  it('slices the 429 pause so Stop ends it and Resume continues the remainder', async () => {
+    const videos = ['a', 'b', 'c'].map((id) => ({ videoId: id, title: id }));
+    let stop = false;
+    const waits = [];
+    const paused = await WLC.removeVideos(videos, {
+      doc: document,
+      delayMs: 400,
+      maxDelayMs: 5000,
+      jitterMs: 0,
+      maxAttempts: 1,
+      coolDownEvery: 0,
+      coolDownMs: 0,
+      coolDownSliceMs: 1000,
+      shouldStop: () => stop,
+      sleep: async (ms) => {
+        waits.push(ms);
+        if (waits.length === 1) stop = true;
+      },
+      attempt: async (video) =>
+        video.videoId === 'a'
+          ? { ok: false, status: 'failed', step: 'api-throttled', retryable: false, detail: 'HTTP 429' }
+          : { ok: true, status: 'removed', step: 'api-removed' },
+    });
+    expect(paused.stopped).toBe(true);
+    expect(paused.coolDowns).toBe(1);
+    expect(waits.reduce((sum, ms) => sum + ms, 0)).toBeLessThan(WLC.THROTTLE_FLOOR_MS);
+    expect(paused.remaining.map((v) => v.videoId)).toEqual(['a', 'b', 'c']);
+    const resumed = await WLC.removeVideos(paused.remaining, {
+      doc: document,
+      delayMs: 10,
+      maxDelayMs: 40,
+      jitterMs: 0,
+      maxAttempts: 1,
+      coolDownEvery: 0,
+      coolDownMs: 0,
+      sleep: async () => {},
+      attempt: async () => ({ ok: true, status: 'removed', step: 'api-removed' }),
+    });
+    expect(resumed).toMatchObject({ done: 3, failed: 0, stopped: false, remaining: [] });
   });
 
   it('stops during a cool-down and Resume continues the rest', async () => {
@@ -458,5 +563,157 @@ describe('periodic cool-down', () => {
     expect(paused.remaining.map((v) => v.videoId)).toEqual(['b', 'c', 'd']);
     const resumed = await WLC.removeVideos(paused.remaining, Object.assign({}, base, { coolDownEvery: 0, coolDownMs: 0 }));
     expect(resumed).toMatchObject({ done: 3, failed: 0, stopped: false, remaining: [] });
+  });
+});
+
+describe('undo last Fast run', () => {
+  it('addOne sends one ACTION_ADD_VIDEO and never returns credentials', async () => {
+    const api = setupPage();
+    const replies = [];
+    const onMessage = (e) => {
+      const m = e.data;
+      if (m && m.source === 'wlc-ext' && m.dir === 'res') replies.push(JSON.parse(JSON.stringify(m)));
+    };
+    window.addEventListener('message', onMessage);
+    try {
+      fetchLog.length = 0;
+      const added = await api.addOne({ videoId: 'zzzzzzzzzz1' });
+      expect(added).toMatchObject({ ok: true, status: 'added', step: 'api-added', method: 'api:addVideoId' });
+      const req = fetchLog[fetchLog.length - 1];
+      expect(req.url).toMatch(/\/youtubei\/v1\/browse\/edit_playlist/);
+      expect(JSON.parse(req.body)).toMatchObject({ playlistId: 'WL', actions: [{ action: 'ACTION_ADD_VIDEO', addedVideoId: 'zzzzzzzzzz1' }] });
+      expect(JSON.parse(req.body).actions).toHaveLength(1);
+      expect(req.headers.Authorization).toMatch(/^SAPISIDHASH /);
+      expect(JSON.stringify(added)).not.toMatch(/SAPISID|Authorization|Cookie/i);
+      expect(JSON.stringify(replies)).not.toContain(SAPISID);
+      expect(JSON.stringify(replies)).not.toMatch(/Authorization|Cookie/i);
+      const again = await api.addOne({ videoId: 'zzzzzzzzzz1' });
+      expect(again.ok).toBe(false);
+      expect(again.status).not.toBe('added');
+    } finally {
+      window.removeEventListener('message', onMessage);
+    }
+  });
+
+  it('re-adds the last Fast removal one id at a time, then clears it', async () => {
+    setupPage({ pageSize: 4 });
+    const sync = { wlcSettings: null };
+    globalThis.chrome = {
+      storage: {
+        sync: {
+          async get() { return { wlcSettings: sync.wlcSettings }; },
+          async set(obj) { Object.assign(sync, obj); },
+        },
+        onChanged: { addListener() {} },
+      },
+      runtime: { getManifest() { return { version: 't' }; } },
+    };
+    const panel = WLC.createPanel(document);
+    const $ = (s) => panel.shadow.querySelector(s);
+    const gaps = [];
+    const origPace = WLC.pace;
+    WLC.pace = async (ms) => gaps.push(ms);
+    try {
+      await panel.reloadSettings();
+      panel.show();
+      await panel.preview();
+      panel.state.settings.delayMs = 123;
+      await panel.remove();
+      await panel.remove();
+      expect($('.status').textContent).toMatch(/^Done: removed 4 of 4\. \[Fast\]/);
+      expect($('.btn-undo').hidden).toBe(false);
+      expect(panel.state.undoIds).toEqual(['aaaaaaaaaa1', 'aaaaaaaaaa2', 'aaaaaaaaaa4', 'aaaaaaaaaa5']);
+      expect(JSON.stringify(sync)).not.toContain('aaaaaaaaaa1');
+      expect(JSON.stringify(sync)).not.toContain('undoIds');
+      const removed = server.state.removed.slice();
+      fetchLog.length = 0;
+      gaps.length = 0;
+      await panel.undoLast();
+      expect(server.state.added).toEqual(removed);
+      expect(fetchLog.map((r) => JSON.parse(r.body).actions)).toEqual(removed.map((id) => [{ action: 'ACTION_ADD_VIDEO', addedVideoId: id }]));
+      expect(gaps).toEqual([123, 123, 123]);
+      expect($('.status').textContent).toMatch(/Undo: re-added 4, failed 0\./);
+      expect($('.btn-undo').hidden).toBe(true);
+      expect(panel.state.undoIds).toEqual([]);
+      const text = await panel.copyDebugLog();
+      expect(text).not.toContain(SAPISID);
+      expect(text).not.toMatch(/Authorization|Cookie/i);
+      for (let i = 0; i < sessionStorage.length; i++) {
+        expect(sessionStorage.getItem(sessionStorage.key(i)) || '').not.toContain('aaaaaaaaaa1');
+      }
+    } finally {
+      WLC.pace = origPace;
+      panel.destroy();
+      delete globalThis.chrome;
+    }
+  });
+
+  it('a failed add does not claim success and a new Remove replaces the undo list', async () => {
+    setupPage({ pageSize: 4 });
+    const panel = WLC.createPanel(document);
+    const $ = (s) => panel.shadow.querySelector(s);
+    const origPace = WLC.pace;
+    WLC.pace = async () => {};
+    try {
+      await panel.reloadSettings();
+      await panel.preview();
+      await panel.remove();
+      await panel.remove();
+      const first = panel.state.undoIds.slice();
+      expect(first).toHaveLength(4);
+      const inner = server.handle.bind(server);
+      server.handle = (req) => {
+        const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+        if (/edit_playlist/.test(req.url) && body.actions && body.actions[0] && body.actions[0].action === 'ACTION_ADD_VIDEO') {
+          return { status: 200, json: { status: 'STATUS_FAILED' } };
+        }
+        return inner(req);
+      };
+      const result = await panel.undoLast();
+      expect(result).toMatchObject({ ok: 0, failed: 4 });
+      expect($('.status').textContent).toMatch(/Undo: re-added 0, failed 4\./);
+      expect($('.status').textContent).not.toMatch(/re-added [1-9]/);
+      expect($('.btn-undo').hidden).toBe(false);
+      expect(server.state.added).toEqual([]);
+
+      server.handle = inner;
+      await panel.preview();
+      expect(panel.state.undoIds).toEqual([]);
+      expect($('.btn-undo').hidden).toBe(true);
+      panel.state.undoIds = first.concat(['stale-id']);
+      panel.state.plan = [{ video: { videoId: 'aaaaaaaaaa9', title: 'Podcast episode #42 – productivity' }, reasons: ['watched'] }];
+      panel.state.armed = true;
+      await panel.remove();
+      expect(panel.state.undoIds).toEqual(['aaaaaaaaaa9']);
+      expect(panel.state.undoIds).not.toContain('stale-id');
+    } finally {
+      WLC.pace = origPace;
+      panel.destroy();
+    }
+  });
+
+  it('does not offer undo after a Classic run', async () => {
+    setupPage({ pageSize: 4, fakeMenu: true });
+    const panel = WLC.createPanel(document);
+    const $ = (s) => panel.shadow.querySelector(s);
+    const orig = WLC.removeWithFallback;
+    WLC.removeWithFallback = async () => ({
+      done: 2, failed: 0, skipped: 0, total: 2, stopped: false, aborted: false, remaining: [], steps: {}, log: [], modeUsed: 'classic',
+    });
+    try {
+      await panel.reloadSettings();
+      panel.state.plan = [
+        { video: { videoId: 'aaaaaaaaaa1', title: 'a' }, reasons: ['watched'] },
+        { video: { videoId: 'aaaaaaaaaa2', title: 'b' }, reasons: ['watched'] },
+      ];
+      panel.state.armed = true;
+      panel.state.settings.removalMode = 'classic';
+      await panel.remove();
+      expect(panel.state.undoIds).toEqual([]);
+      expect($('.btn-undo').hidden).toBe(true);
+    } finally {
+      WLC.removeWithFallback = orig;
+      panel.destroy();
+    }
   });
 });
