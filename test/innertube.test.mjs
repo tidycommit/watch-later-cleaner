@@ -118,6 +118,23 @@ describe('ytcfg, headers and request bodies', () => {
       { action: 'ACTION_REMOVE_VIDEO', setVideoId: 'S3' },
     ]);
   });
+
+  it('add body is one ACTION_ADD_VIDEO, and a failed add response is not success', () => {
+    const ctx = { client: { clientName: 'WEB' } };
+    expect(WLC.buildAddAction({ videoId: 'aaaaaaaaaa1' })).toEqual({ action: 'ACTION_ADD_VIDEO', addedVideoId: 'aaaaaaaaaa1' });
+    expect(WLC.buildAddAction({})).toBeNull();
+    expect(WLC.buildAddPlaylistBody(ctx, { videoId: 'aaaaaaaaaa1' })).toEqual({
+      context: ctx,
+      playlistId: 'WL',
+      actions: [{ action: 'ACTION_ADD_VIDEO', addedVideoId: 'aaaaaaaaaa1' }],
+    });
+    expect(WLC.buildAddPlaylistBody(ctx, [{ videoId: 'aaaaaaaaaa1' }, { videoId: 'aaaaaaaaaa2' }]).actions).toEqual([]);
+    expect(WLC.interpretAddResponse(true, 200, { status: 'STATUS_SUCCEEDED' })).toMatchObject({ ok: true, status: 'added', step: 'api-added' });
+    expect(WLC.interpretAddResponse(true, 200, { status: 'STATUS_FAILED' }).ok).toBe(false);
+    expect(WLC.interpretAddResponse(true, 200, { playlistEditResults: [{ playlistEditVideoAddedResultData: {} }] }).ok).toBe(false);
+    expect(WLC.interpretAddResponse(false, 500, { error: { status: 'INTERNAL', message: 'nope' } })).toMatchObject({ ok: false, step: 'api-server-error' });
+    expect(WLC.interpretAddResponse(false, 429, { error: { message: 'slow down' } })).toMatchObject({ ok: false, step: 'api-throttled' });
+  });
 });
 
 describe('parseBrowseResponse', () => {

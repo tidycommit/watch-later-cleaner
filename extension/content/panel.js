@@ -59,7 +59,7 @@
     .btn-preview { background: #0f0f0f; color: #fff; }
     .btn-remove { background: #cc1f1f; color: #fff; }
     .btn-stop { background: #e5e5e5; color: #0f0f0f; }
-    .btn-resume { background: #1a73e8; color: #fff; }
+    .btn-resume, .btn-undo { background: #1a73e8; color: #fff; }
     .btn-log { background: #fff; color: #0f0f0f; border: 1px solid #ccc !important; }
     .actions.secondary button[hidden] { display: none; }
     button:disabled { opacity: .45; cursor: not-allowed; }
@@ -156,6 +156,7 @@
         </div>
         <div class="actions secondary">
           <button class="btn-resume" hidden>Resume</button>
+          <button type="button" class="btn-undo" hidden>Undo last run</button>
           <button class="btn-log" disabled title="Copy a plain-text log of every removal attempt (for troubleshooting)">Copy debug log</button>
         </div>
         <div class="status" aria-live="polite">Choose criteria, then click Preview.</div>
@@ -230,6 +231,7 @@
     const btnRemove = $('.btn-remove');
     const btnStop = $('.btn-stop');
     const btnResume = $('.btn-resume');
+    const btnUndo = $('.btn-undo');
     const btnLog = $('.btn-log');
 
     const state = {
@@ -239,6 +241,7 @@
       stop: false,
       armed: false,
       pending: [], // videos (by id) still to remove after Stop / pause — used by Resume
+      undoIds: [], // Fast removals from the last run. Memory only — never written to storage.
       log: [],
       lastStats: null,
       api: null,
@@ -296,7 +299,12 @@
     function updateSecondary() {
       btnResume.hidden = state.busy || !state.pending.length;
       btnResume.textContent = `Resume (${state.pending.length} left)`;
+      btnUndo.hidden = state.busy || !state.undoIds.length;
       btnLog.disabled = !state.log.length;
+    }
+    function clearUndo() {
+      state.undoIds = [];
+      updateSecondary();
     }
     function setBusy(b) {
       state.busy = b;
@@ -470,6 +478,7 @@
 
     async function preview() {
       if (state.busy) return;
+      clearUndo();
       const s = (state.settings = readForm());
       WLC.saveSettings(s);
       invalidatePlan();
@@ -550,10 +559,12 @@
         .join(', ');
     }
 
-    async function runRemoval(entries) {
+    async function runRemoval(entries, runOpts = {}) {
       state.stop = false;
       setBusy(true);
       const s = state.settings;
+      const priorUndo = runOpts.appendUndo ? state.undoIds.slice() : [];
+      const removedIds = [];
       let stats;
       try {
         stats = await WLC.removeWithFallback(entries, {
@@ -566,6 +577,9 @@
           fallbackPosition: s.menuFallbackPosition,
           shouldStop: () => state.stop,
           onLog: logEvent,
+          onRemoved: (v) => {
+            if (v && v.videoId) removedIds.push(String(v.videoId));
+          },
           onFallback: (reason) => setStatus(`Fast mode failed (${reason}) — switching to Classic (page clicks)…`),
           onCoolDown: (c) => {
             const sec = Math.max(0, Math.ceil(c.remainingMs / 1000));
@@ -588,6 +602,8 @@
       state.lastStats = stats;
       state.lastMode = stats.modeUsed;
       state.pending = stats.remaining;
+      // Only a Fast run that stayed on Fast can be undone. The ids never go into storage.
+      state.undoIds = stats.modeUsed === 'fast' ? priorUndo.concat(removedIds) : [];
       let msg = `${stats.stopped ? 'Stopped' : stats.aborted ? 'Paused' : 'Done'}: removed ${stats.done} of ${stats.total}.`;
       msg += stats.modeUsed === 'fast' ? ' [Fast]' : stats.modeUsed === 'fast→classic' ? ' [Fast → Classic fallback]' : stats.fallbackReason ? ' [Classic: Fast mode unavailable]' : ' [Classic]';
       if (stats.skipped) msg += ` ${stats.skipped} were already gone.`;
@@ -606,9 +622,11 @@
       if (!state.armed) {
         state.armed = true; // require a second, explicit confirm click
         updateRemoveButton();
-        setStatus(`Click "Confirm: remove ${selectedPlan().length}" to start. This cannot be undone from here.`);
+        const undoNote = state.settings.removalMode === 'fast' ? ' Fast mode can undo that run from this panel until the next Preview or Remove.' : ' This cannot be undone from here.';
+        setStatus(`Click "Confirm: remove ${selectedPlan().length}" to start.${undoNote}`);
         return;
       }
+      clearUndo();
       const entries = selectedPlan().map((m) => WLC.toPlanEntry(m.video)); // ids, not DOM positions
       invalidatePlan();
       listEl.innerHTML = '';
@@ -618,7 +636,43 @@
 
     async function resume() {
       if (state.busy || !state.pending.length) return;
-      return runRemoval(state.pending.slice());
+      return runRemoval(state.pending.slice(), { appendUndo: true });
+    }
+
+    async function undoLast() {
+      if (state.busy || !state.undoIds.length) return null;
+      const ids = state.undoIds.slice();
+      state.stop = false;
+      setBusy(true);
+      const delayMs = state.settings.delayMs;
+      let ok = 0;
+      let failed = 0;
+      const left = [];
+      try {
+        for (let n = 0; n < ids.length; n++) {
+          if (state.stop) {
+            left.push(...ids.slice(n));
+            break;
+          }
+          const videoId = ids[n];
+          const r = await fastApi().addOne({ videoId });
+          logEvent({ t: new Date().toISOString(), videoId, attempt: 1, step: r.step, ok: Boolean(r.ok), mode: 'fast', detail: r.detail || r.method || '' });
+          if (r.ok) ok++;
+          else {
+            failed++;
+            left.push(videoId);
+          }
+          setStatus(`Undoing… re-added ${ok}, failed ${failed}.`);
+          if (n < ids.length - 1 && !state.stop) await WLC.pace(delayMs, { doc });
+        }
+      } finally {
+        setBusy(false);
+      }
+      state.undoIds = left;
+      updateSecondary();
+      const tail = left.length ? ` ${left.length} still not back on Watch Later.` : ' Those videos are back on Watch Later.';
+      setStatus(`Undo: re-added ${ok}, failed ${failed}.${tail}`);
+      return { ok, failed, left: left.slice() };
     }
 
     async function copyDebugLog() {
@@ -850,6 +904,7 @@
     btnPreview.addEventListener('click', () => preview());
     btnRemove.addEventListener('click', () => remove());
     btnResume.addEventListener('click', () => resume());
+    btnUndo.addEventListener('click', () => undoLast());
     btnLog.addEventListener('click', () => copyDebugLog());
     btnStop.addEventListener('click', () => {
       state.stop = true;
@@ -946,6 +1001,7 @@
       preview,
       remove,
       resume,
+      undoLast,
       copyDebugLog,
       analyze,
       renderPreviewStats,

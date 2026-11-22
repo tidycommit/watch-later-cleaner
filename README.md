@@ -115,7 +115,11 @@ and clicking (Classic) stalls. Fast mode doesn't depend on either:
   the "3 years ago" text and the position. The same filters, preview and analytics then run on that list.
 - **Removal.** Each video is removed with `/youtubei/v1/browse/edit_playlist` (`playlistId: "WL"`, `ACTION_REMOVE_VIDEO` with
   the entry's `setVideoId`; `ACTION_REMOVE_VIDEO_BY_VIDEO_ID` if only the video ID is known). It goes one video at a time, waits for
-  each response and counts a removal only when the response is OK **and** reports `STATUS_SUCCEEDED`. Retries, adaptive backoff,
+  each response and counts a removal only when the response is OK **and** reports `STATUS_SUCCEEDED`. After a Fast run that
+  removed at least one video, **Undo last run** puts those video ids back on Watch Later the same way, one `edit_playlist`
+  request at a time (`ACTION_ADD_VIDEO` with `addedVideoId`), waiting the configured delay between them. The undo list stays
+  in memory for that panel only. It is cleared after a successful undo and when you start a new Preview or Remove. Classic
+  removal is not undone. Retries, adaptive backoff,
   the pause after 8 failures in a row, Resume and the debug log work as in Classic. Removed rows are taken off the page; reload it
   to refresh the list from YouTube.
 - **How the requests are made.** A small script runs in the page's own JavaScript context (a Manifest V3 `world: "MAIN"` content
