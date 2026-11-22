@@ -63,6 +63,9 @@
     .btn-log { background: #fff; color: #0f0f0f; border: 1px solid #ccc !important; }
     .actions.secondary button[hidden] { display: none; }
     button:disabled { opacity: .45; cursor: not-allowed; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, a:focus-visible {
+      outline: 2px solid #1a73e8; outline-offset: 2px;
+    }
     .status { margin: 6px 0; color: #303030; min-height: 18px; }
     .bar { height: 6px; background: #eee; border-radius: 3px; overflow: hidden; }
     .bar > div { height: 100%; width: 0; background: #cc1f1f; transition: width .2s; }
@@ -97,14 +100,14 @@
 
   const HTML = `
     <button class="fab" part="fab" title="Watch Later Cleaner">🧹 WL Cleaner</button>
-    <div class="panel" hidden role="dialog" aria-label="Watch Later Cleaner">
-      <header><span class="title">🧹 Watch Later Cleaner</span>
-        <span class="hbtns"><button class="expand" title="Wider panel">⤢</button><button class="close" title="Close">×</button></span></header>
-      <div class="tabs" role="tablist">
-        <button role="tab" data-tab="clean" aria-selected="true">Clean</button>
-        <button role="tab" data-tab="analytics" aria-selected="false">Analytics</button>
+    <div class="panel" hidden role="dialog" aria-modal="true" aria-labelledby="wlc-dialog-title">
+      <header><span class="title" id="wlc-dialog-title">🧹 Watch Later Cleaner</span>
+        <span class="hbtns"><button type="button" class="expand" title="Wider panel" aria-label="Wider panel">⤢</button><button type="button" class="close" title="Close" aria-label="Close">×</button></span></header>
+      <div class="tabs" role="tablist" aria-label="Cleaner sections">
+        <button type="button" role="tab" id="wlc-tab-clean" data-tab="clean" aria-selected="true" aria-controls="wlc-panel-clean">Clean</button>
+        <button type="button" role="tab" id="wlc-tab-analytics" data-tab="analytics" aria-selected="false" aria-controls="wlc-panel-analytics" tabindex="-1">Analytics</button>
       </div>
-      <div class="body view view-clean" data-view="clean">
+      <div class="body view view-clean" id="wlc-panel-clean" role="tabpanel" aria-labelledby="wlc-tab-clean" data-view="clean">
         <fieldset><legend>Remove videos that match <select data-k="matchMode" title="any = a video matching one ticked criterion is removed; all = it must match every ticked criterion"><option value="any">any</option><option value="all">all</option></select> of</legend>
           <div class="row"><label><input type="checkbox" data-k="watched"> Watched ≥</label>
             <input type="number" min="1" max="100" data-k="watchedThreshold"> %</div>
@@ -163,7 +166,7 @@
         <div class="list"></div>
         <div class="hint">Nothing is removed until you click Preview and then confirm. Runs in your browser and only talks to youtube.com.</div>
       </div>
-      <div class="body view view-analytics" data-view="analytics" hidden>
+      <div class="body view view-analytics" id="wlc-panel-analytics" role="tabpanel" aria-labelledby="wlc-tab-analytics" data-view="analytics" hidden>
         <div class="actions">
           <button class="btn-analyze">Analyze playlist</button>
           <button class="btn-csv" disabled>Export CSV</button>
@@ -660,14 +663,21 @@
     const btnJson = $('.btn-json');
 
     function showTab(name) {
-      shadow.querySelectorAll('.tabs [data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+      shadow.querySelectorAll('.tabs [data-tab]').forEach((b) => {
+        const on = b.dataset.tab === name;
+        b.setAttribute('aria-selected', String(on));
+        b.tabIndex = on ? 0 : -1;
+      });
       shadow.querySelectorAll('.view').forEach((v) => (v.hidden = v.dataset.view !== name));
       state.tab = name;
     }
 
     function setExpanded(on) {
       panelEl.classList.toggle('expanded', Boolean(on));
-      $('.expand').title = on ? 'Narrower panel' : 'Wider panel';
+      const label = on ? 'Narrower panel' : 'Wider panel';
+      const btn = $('.expand');
+      btn.title = label;
+      btn.setAttribute('aria-label', label);
     }
 
     function bars(rows, opts = {}) {
@@ -808,7 +818,19 @@
       setStatus(`Channel filter set to “${name}”. Click Preview to see what would be removed.`);
     }
 
-    shadow.querySelectorAll('.tabs [data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+    shadow.querySelectorAll('.tabs [data-tab]').forEach((b) => {
+      b.addEventListener('click', () => showTab(b.dataset.tab));
+      b.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Home' && e.key !== 'End') return;
+        const tabs = Array.from(shadow.querySelectorAll('.tabs [role="tab"]'));
+        const i = tabs.indexOf(b);
+        const index = e.key === 'ArrowRight' ? (i + 1) % tabs.length : e.key === 'ArrowLeft' ? (i - 1 + tabs.length) % tabs.length : e.key === 'Home' ? 0 : tabs.length - 1;
+        const next = tabs[index];
+        e.preventDefault();
+        showTab(next.dataset.tab);
+        next.focus();
+      });
+    });
     $('.expand').addEventListener('click', () => setExpanded(!panelEl.classList.contains('expanded')));
     btnAnalyze.addEventListener('click', () => analyze());
     btnCsv.addEventListener('click', () => exportCsv());
@@ -851,8 +873,54 @@
         schedulePreviewStats();
       }
     });
+    function dialogFocusables() {
+      return Array.from(panelEl.querySelectorAll('a[href], button, input, select, textarea, summary')).filter((el) => {
+        if (el.disabled || el.tabIndex < 0) return false;
+        let n = el;
+        while (n && n !== panelEl) {
+          if (n.hidden) return false;
+          n = n.parentElement;
+        }
+        return true;
+      });
+    }
+
+    let dialogApi = null;
+
+    function onDialogKeydown(e) {
+      if (panelEl.hidden) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        // Mid-removal: leave the dialog open and move to Stop so the run can be cancelled.
+        if (state.busy) {
+          btnStop.focus();
+          return;
+        }
+        if (dialogApi) dialogApi.hide();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const items = dialogFocusables();
+      if (!items.length) return;
+      const i = items.indexOf(shadow.activeElement);
+      if (e.shiftKey) {
+        if (i <= 0) {
+          e.preventDefault();
+          items[items.length - 1].focus();
+        }
+      } else if (i === -1 || i === items.length - 1) {
+        e.preventDefault();
+        items[0].focus();
+      }
+    }
+
     // Keep YouTube keyboard shortcuts from firing while typing in the panel.
-    ['keydown', 'keyup', 'keypress'].forEach((ev) => shadow.addEventListener(ev, (e) => e.stopPropagation()));
+    ['keydown', 'keyup', 'keypress'].forEach((ev) =>
+      shadow.addEventListener(ev, (e) => {
+        if (ev === 'keydown') onDialogKeydown(e);
+        e.stopPropagation();
+      })
+    );
 
     const api = {
       host,
@@ -861,12 +929,18 @@
       show() {
         panelEl.hidden = false;
         refreshSort();
+        const closeBtn = $('.close');
+        if (closeBtn) closeBtn.focus();
       },
       hide() {
+        if (panelEl.hidden) return;
         panelEl.hidden = true;
+        const fab = $('.fab');
+        if (fab) fab.focus();
       },
       toggle() {
-        panelEl.hidden = !panelEl.hidden;
+        if (panelEl.hidden) api.show();
+        else api.hide();
       },
       isOpen: () => !panelEl.hidden,
       preview,
@@ -898,6 +972,7 @@
       refreshSort,
       fastApi,
     };
+    dialogApi = api;
     // Pick up changes made in the popup (or another tab) while the panel is idle.
     try {
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
